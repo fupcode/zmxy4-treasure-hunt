@@ -1,0 +1,31 @@
+# 应用名称。init 默认使用项目根目录名。
+app_name = "自动航海"
+
+# 是否显示控制台窗口。图形界面应用可设为 false。
+console = true
+
+# 应用图标路径，相对于项目工作目录；留空使用 PyInstaller 默认图标。
+icon = ""
+
+# 应用版本号。发布时会写入 version.json。
+version_number = "0.1.0"
+
+# 更新提示信息。发布时会写入 version.json。
+message = ""
+
+# 版本清单下载域名，不包含 https://。
+download_domain = "fupcode.com"
+
+# 版本清单发布目录。{app_name} 会自动解析为 app_name。
+app_dir = "/software/{app_name}/"
+
+# 外部软件包分发 URL。留空表示 pydist 自动上传 zip。
+# {app_name} 会自动解析为 app_name，例如 https://cdn.example.com/{app_name}/{app_name}.zip。
+external_zip_url = ""
+
+# scp 上传使用的 SSH 用户和服务器 Web 根目录。
+ssh_user = "fpc"
+ssh_root = "/var/www/fupcode.com/public/"
+
+# pydist release 执行构建 dist/{app_name}/、生成 dist/{app_name}.zip、自增 build 并刷新 version.json，上传 zip 与 version.json。
+# pydist release --dry-run 执行构建、生成zip，进行远端目录检查，不自增 build 但刷新 version.json，不上传。

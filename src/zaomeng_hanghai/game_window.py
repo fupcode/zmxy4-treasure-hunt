@@ -154,9 +154,9 @@ class GameWindow:
         if icon_box is None:
             raise TimeoutError("Can't find the icon.")
 
-        xc, yc = icon_box.xywh[0], icon_box.xywh[1]
-        x = self.window_box[0] + int(xc)
-        y = self.window_box[1] + int(yc)
+        height, width = image.shape[:2]
+        x = self.window_box[0] + int(icon_box.xywhn[0] * width)
+        y = self.window_box[1] + int(icon_box.xywhn[1] * height)
         click(x, y)
 
         time.sleep(1)
@@ -240,8 +240,10 @@ class GameWindow:
 
     def filter_bullet(self, det):
         window_image_hls = np.zeros(self.window_image.shape, np.uint8)
+        height, width = self.window_image.shape[:2]
         for bullet_box in det['bullet']:
-            crop_box = (int(bullet_box.xyxy[0]), int(bullet_box.xyxy[1]), int(bullet_box.xyxy[2]), int(bullet_box.xyxy[3]))
+            x1, y1, x2, y2 = bullet_box.xyxyn
+            crop_box = (int(x1 * width), int(y1 * height), int(x2 * width), int(y2 * height))
 
             image = self.crop_image_by_box(self.window_image, crop_box)
 

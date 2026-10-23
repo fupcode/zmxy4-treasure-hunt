@@ -90,3 +90,6 @@ version.json
 *.pt
 
 images/
+/yolo/*
+!/yolo/README.md
+!/yolo/*.py

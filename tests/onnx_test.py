@@ -24,7 +24,9 @@ for class_name, detection_results in results.items():
     for i, result in enumerate(detection_results):
         print(f"  Box {i}:")
 
-        cv2.rectangle(image, (int(result.xyxy[0]), int(result.xyxy[1])), (int(result.xyxy[2]), int(result.xyxy[3])), (0, 255, 0), 2)
+        height, width = image.shape[:2]
+        x1, y1, x2, y2 = result.xyxyn
+        cv2.rectangle(image, (int(x1 * width), int(y1 * height)), (int(x2 * width), int(y2 * height)), (0, 255, 0), 2)
 
 cv2.imshow("Detection", image)
 cv2.waitKey(0)

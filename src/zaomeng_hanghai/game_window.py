@@ -29,7 +29,7 @@ def click(x, y):
 
 class GameWindow:
     def __init__(self, yolo_model_dir="model"):
-        self.camera = dxcam.create(output_color="BGR")
+        self.camera = dxcam.create()
 
         self.model = OnnxModel(os.path.join(yolo_model_dir, "best.onnx"))
 

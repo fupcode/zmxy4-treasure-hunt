@@ -1,5 +1,10 @@
 # YOLO 训练
 
+Windows 下项目已将 `torch`、`torchvision` 绑定到 PyTorch 官方 CUDA 13.0 源，
+用于 RTX 50 系显卡。运行 `uv sync` 安装，首次需要下载较大的 CUDA 版 wheel。
+可用 `uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
+确认安装结果，最后一项应为 `True`。
+
 在项目根目录运行（使用项目已有的 uv 环境）：
 
 ```powershell

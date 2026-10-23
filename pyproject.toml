@@ -16,6 +16,8 @@ dependencies = [
     "dxcam[cv2,winrt]",
     "scipy",
     "ultralytics>=8.4.184",
+    "torch>=2.10",
+    "torchvision>=0.25",
 ]
 
 [build-system]
@@ -24,3 +26,10 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 pydist = { git = "ssh://git@github.com/fupcode/pydist.git" }
+torch = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
+torchvision = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

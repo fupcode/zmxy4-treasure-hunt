@@ -48,7 +48,8 @@ class Env:
     # 角色 7 + 关卡进度 1 + 关卡类型 9 + 敌人 15 + 弹幕 28。
     state_space = 17 + EnemyList.state_dim + Bullets.state_dim
 
-    def __init__(self, timeout=5, stay_timeout=30):
+    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False):
+        self.render_enabled = render_enabled
         self.timeout = timeout
         self.game_window = GameWindow()
         self.window_size = None
@@ -64,18 +65,19 @@ class Env:
         self.move_index = None
         self.move_end = None
 
-        self.fps_calculator = FrameRateCalculator()
-        self.map = Map()
+        self.fps_calculator = FrameRateCalculator() if render_enabled else None
+        self.map = Map(render_enabled=render_enabled)
         self.stay_timeout = stay_timeout
 
     def init_window(self, outer_window_box=None):
         self.game_window.init_window(outer_window_box)
         self.window_size = self.game_window.window_size
 
-        image = np.zeros((MAZE_HEIGHT, MAZE_WIDTH, 3), dtype=np.uint8)
-        cv2.imshow("Monitor", image)
-        cv2.moveWindow("Monitor", 0, 0)
-        cv2.setWindowProperty("Monitor", cv2.WND_PROP_TOPMOST, 1)
+        if self.render_enabled:
+            image = np.zeros((MAZE_HEIGHT, MAZE_WIDTH, 3), dtype=np.uint8)
+            cv2.imshow("Monitor", image)
+            cv2.moveWindow("Monitor", 0, 0)
+            cv2.setWindowProperty("Monitor", cv2.WND_PROP_TOPMOST, 1)
 
         x1, y1, x2, y2 = self.game_window.window_box
         click(x2 - 10, y2 - 10)
@@ -178,8 +180,11 @@ class Env:
         fire_direction = self.map.fire_direction(self.player, self.enemy_list)
         self.action_manager.set_fire_direction(fire_direction)
 
-        if self.map.level > 0:
+        if self.map.level > 0 and not self.can_next_level():
             self.map.update(self.player, self.bullets, self.enemy_list)
+        else:
+            # 清场后的过关寻路只使用静态地图，无需重建战斗危险区域。
+            self.map.debug_image = None
 
         return status_code
 
@@ -259,7 +264,6 @@ class Env:
             direction, path = self.map.get_next_direction(self.player, self.falling_items)
             self.render(path)
             self.action_manager.take_action_direction(direction)
-            time.sleep(0.1)
             status_code = self.update()
 
             if status_code:
@@ -323,6 +327,9 @@ class Env:
         return state
 
     def render(self, path=None):
+        if not self.render_enabled:
+            return
+
         image = np.zeros((MAZE_HEIGHT, MAZE_WIDTH, 3), dtype=np.uint8)
         if self.map.debug_image is not None:
             image += self.map.debug_image
@@ -411,6 +418,6 @@ if __name__ == "__main__":
     else:
         target_ = 3
 
-    env_ = Env()
+    env_ = Env(render_enabled=True)
     env_.init_window()
     auto_loop(env_, target_)

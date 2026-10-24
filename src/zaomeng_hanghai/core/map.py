@@ -38,7 +38,8 @@ from .constants import (
 
 
 class Map:
-    def __init__(self):
+    def __init__(self, render_enabled=True):
+        self.render_enabled = render_enabled
         # 三个常量
         self.route_list = [
             (1, 1, 2, 3, 4),
@@ -583,15 +584,18 @@ class Map:
         end_peek_region区域为黄色
         end_region区域为紫色
         """
-        self.debug_image = np.stack([255 * end_region, end_region, 255 * end_region], axis=-1).astype(np.uint8)
-        mask = end_peek_region > 0
-        self.debug_image[mask] = np.stack([end_peek_region, 255 * end_peek_region, 255 * end_region], axis=-1).astype(np.uint8)[mask]
-        flee_region_enemy_image = flee_region_enemy / (np.max(flee_region_enemy) + 1)
-        mask = flee_region_enemy > 0
-        self.debug_image[mask] = np.stack([flee_region_enemy_image, flee_region_enemy_image, 255 * flee_region_enemy_image], axis=-1).astype(np.uint8)[mask]
-        flee_region_bullet_image = flee_region_bullet / (np.max(flee_region_bullet) + 1)
-        mask = flee_region_bullet > 0
-        self.debug_image[mask] = np.stack([flee_region_bullet_image, 255 * flee_region_bullet_image, 255 * flee_region_bullet_image], axis=-1).astype(np.uint8)[mask]
+        if self.render_enabled:
+            self.debug_image = np.stack([255 * end_region, end_region, 255 * end_region], axis=-1).astype(np.uint8)
+            mask = end_peek_region > 0
+            self.debug_image[mask] = np.stack([end_peek_region, 255 * end_peek_region, 255 * end_region], axis=-1).astype(np.uint8)[mask]
+            flee_region_enemy_image = flee_region_enemy / (np.max(flee_region_enemy) + 1)
+            mask = flee_region_enemy > 0
+            self.debug_image[mask] = np.stack([flee_region_enemy_image, flee_region_enemy_image, 255 * flee_region_enemy_image], axis=-1).astype(np.uint8)[mask]
+            flee_region_bullet_image = flee_region_bullet / (np.max(flee_region_bullet) + 1)
+            mask = flee_region_bullet > 0
+            self.debug_image[mask] = np.stack([flee_region_bullet_image, 255 * flee_region_bullet_image, 255 * flee_region_bullet_image], axis=-1).astype(np.uint8)[mask]
+        else:
+            self.debug_image = None
 
         return moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, peek_cross_enemy, end_peek_region, end_region
 

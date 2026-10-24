@@ -9,6 +9,9 @@ from .direction import (Direction, direction_list, is_reverse_direction, is_sing
                         is_vertical_direction, is_horizontal_direction, get_horizontal_and_vertical_direction)
 
 
+TICK = 0.035
+
+
 def key_down(string):
     """模拟按下键"""
     for char in string:
@@ -111,7 +114,7 @@ class ActionManager:
             suspend_direction, temporary_direction = self.get_fire_direction_adjustment(direction)
             stop_to(suspend_direction)
             move_to(temporary_direction)
-            time.sleep(0.002)
+            time.sleep(TICK)
             key_down("J")
             key_up("J")
             stop_to(temporary_direction)
@@ -122,75 +125,17 @@ class ActionManager:
     def modify_direction(self, direction):
         if self.last_direction is None:
             return None, direction
-        if direction == self.last_direction:  # 完全符合
+        if direction == self.last_direction:
             return None, None
-        # 处理部分冲突
-        if not is_single_direction(self.last_direction):  # 双双部分冲突
-            if len(direction.value) == 2:  # 双双部分冲突
-                if self.last_direction == Direction.DownRight:
-                    if direction == Direction.DownLeft:
-                        return Direction.Right, Direction.Left
-                    elif direction == Direction.UpRight:
-                        return Direction.Down, Direction.Up
-                elif self.last_direction == Direction.DownLeft:
-                    if direction == Direction.DownRight:
-                        return Direction.Left, Direction.Right
-                    elif direction == Direction.UpLeft:
-                        return Direction.Down, Direction.Up
-                elif self.last_direction == Direction.UpRight:
-                    if direction == Direction.UpLeft:
-                        return Direction.Right, Direction.Left
-                    elif direction == Direction.DownRight:
-                        return Direction.Up, Direction.Down
-                elif self.last_direction == Direction.UpLeft:
-                    if direction == Direction.UpRight:
-                        return Direction.Left, Direction.Right
-                    elif direction == Direction.DownLeft:
-                        return Direction.Up, Direction.Down
-            else:  # 双单部分冲突
-                if self.last_direction == Direction.DownRight:
-                    if direction == Direction.Right:
-                        return Direction.Down, None
-                    elif direction == Direction.Down:
-                        return Direction.Right, None
-                elif self.last_direction == Direction.DownLeft:
-                    if direction == Direction.Left:
-                        return Direction.Down, None
-                    elif direction == Direction.Down:
-                        return Direction.Left, None
-                elif self.last_direction == Direction.UpRight:
-                    if direction == Direction.Right:
-                        return Direction.Up, None
-                    elif direction == Direction.Up:
-                        return Direction.Right, None
-                elif self.last_direction == Direction.UpLeft:
-                    if direction == Direction.Left:
-                        return Direction.Up, None
-                    elif direction == Direction.Up:
-                        return Direction.Left, None
-        else:  # 单双部分冲突，没有单单部分冲突
-            if len(direction.value) == 2:
-                if self.last_direction == Direction.Right:
-                    if direction == Direction.DownRight:
-                        return None, Direction.Down
-                    elif direction == Direction.UpRight:
-                        return None, Direction.Up
-                elif self.last_direction == Direction.Left:
-                    if direction == Direction.DownLeft:
-                        return None, Direction.Down
-                    elif direction == Direction.UpLeft:
-                        return None, Direction.Up
-                elif self.last_direction == Direction.Down:
-                    if direction == Direction.DownRight:
-                        return None, Direction.Right
-                    elif direction == Direction.DownLeft:
-                        return None, Direction.Left
-                elif self.last_direction == Direction.Up:
-                    if direction == Direction.UpRight:
-                        return None, Direction.Right
-                    elif direction == Direction.UpLeft:
-                        return None, Direction.Left
-        # 完全冲突
+
+        old_horizontal, old_vertical = get_horizontal_and_vertical_direction(self.last_direction)
+        new_horizontal, new_vertical = get_horizontal_and_vertical_direction(direction)
+
+        # 保留相同轴上的按键，只切换发生变化的方向。
+        if old_horizontal == new_horizontal:
+            return old_vertical, new_vertical
+        if old_vertical == new_vertical:
+            return old_horizontal, new_horizontal
         return self.last_direction, direction
 
     def take_action_direction(self, direction):

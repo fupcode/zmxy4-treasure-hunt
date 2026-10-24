@@ -28,10 +28,10 @@ def click(x, y):
 
 
 class GameWindow:
-    def __init__(self, yolo_model_dir="model"):
+    def __init__(self, yolo_weight_path="weights/best.onnx"):
         self.camera = dxcam.create()
 
-        self.model = OnnxModel(os.path.join(yolo_model_dir, "best.onnx"))
+        self.model = OnnxModel(yolo_weight_path)
 
         self.window_box = None
         self.window_size = None

@@ -13,12 +13,9 @@ class DetectionResult:
 
 
 class OnnxModel:
-    def __init__(self, onnx_path=None):
+    def __init__(self, onnx_path):
         # 加载 ONNX 模型
-        if onnx_path is None:
-            self.session = ort.InferenceSession("model/best.onnx")
-        else:
-            self.session = ort.InferenceSession(onnx_path)
+        self.session = ort.InferenceSession(onnx_path)
 
         # 获取模型输入的名称和形状
         self.input_name = self.session.get_inputs()[0].name

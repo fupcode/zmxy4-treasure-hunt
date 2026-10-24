@@ -10,8 +10,12 @@ requires-python = ">=3.12"
 dependencies = [
     "pydist",
     "numpy",
+    "pillow",
+    "matplotlib",
     "opencv-python",
     "onnxruntime",
+    "onnx>=1.12.0,<2.0.0",
+    "onnxslim>=0.1.82",
     "pywin32",
     "dxcam[cv2,winrt]",
     "scipy",

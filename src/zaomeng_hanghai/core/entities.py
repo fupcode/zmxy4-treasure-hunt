@@ -148,8 +148,15 @@ class Enemy:
         self.fired_time = None
         self.cool_down_time = None
 
-        self.distance_array = self.get_distance_array()
-        self.vision = self.calculate_vision(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
+        # 状态观测不依赖这些数组，仅在自动战斗寻路时按需计算。
+        self.distance_array = None
+        self.vision = None
+
+    def prepare_navigation(self, maze):
+        if self.distance_array is None:
+            self.distance_array = self.get_distance_array()
+        if self.vision is None:
+            self.vision = self.calculate_vision(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
 
     def inherit(self, enemy):
         self.fired = enemy.fired

@@ -172,6 +172,8 @@ class ActionManager:
         stop_direction, move_direction = self.modify_direction(direction)
         stop_to(stop_direction)
         move_to(move_direction)
+        time.sleep(0.003)
+        move_to(direction)
         self.last_direction = direction
 
         remaining_time = self.action_start_time + self.action_interval - time.time()

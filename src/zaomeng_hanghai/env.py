@@ -101,6 +101,7 @@ class Env:
         self.bullets = Bullets()
         self.falling_items = FallingItems()
 
+        self.new_level = False
         self.move_index = None
         self.move_end = None
 
@@ -117,6 +118,7 @@ class Env:
         return state, status_code
 
     def update(self) -> int:
+        """更新感知、实体跟踪及战斗状态，供智能体和自动寻路共用。"""
         status_code = self.game_window.update()
         start_time = time.time()
         while status_code == -1:
@@ -147,6 +149,8 @@ class Env:
             self.enemy_list.clear()
             self.bullets.clear()
             self.falling_items.clear()
+            self.move_index = None
+            self.move_end = None
 
         self.player = player
 
@@ -193,14 +197,16 @@ class Env:
         fire_direction = self.map.fire_direction(self.player, self.enemy_list)
         self.action_manager.set_fire_direction(fire_direction)
 
-        if self.map.level > 0 and not self.can_next_level():
-            self.map.update(self.player, self.bullets, self.enemy_list)
-        else:
-            # 清场后的过关寻路只使用静态地图，无需重建战斗危险区域。
-            self.map.debug_image = None
+        # 观测更新后旧危险图失效；仅自动战斗寻路会重建它。
+        self.map.flee_mazes = None
+        self.map.debug_image = None
 
         self.fps_calculator.trigger(log_to_terminal=not self.render_enabled)
         return status_code
+
+    def update_navigation(self):
+        """按当前观测生成自动战斗寻路使用的危险图。"""
+        self.map.update(self.player, self.bullets, self.enemy_list)
 
     def auto_step(self):
         status_code = self.move_to_enemy_and_update()  # 含有update
@@ -214,6 +220,7 @@ class Env:
         return status_code
 
     def step(self, action):
+        """执行智能体动作，刷新观测，并由静态地图寻路完成清场后的过关。"""
         self.action_manager.take_action(action)
         self.render()
         status_code = self.update()
@@ -237,16 +244,12 @@ class Env:
                 loop_act(None)
                 if not self.enemy_list:
                     continue
-                print(self.enemy_list[0].xn)
                 if self.map.map_index == 1:
                     if self.enemy_list[0].xn < 0.6:
                         continue
                 elif self.map.map_index == 5:
                     if 0.4 < self.enemy_list[0].xn < 0.6:
                         continue
-            elif self.map.get_task() == 0:
-                time.sleep(1)
-
             elif self.map.map_index == 3:
                 if self.map.level == 1:
                     direction = Direction.Down
@@ -275,6 +278,7 @@ class Env:
         return len(self.enemy_list) == 0 and len(self.bullets) == 0
 
     def try_next_level(self):
+        """使用静态地图拾取掉落物、前往出口，不计算战斗危险图。"""
         loop_start_time = time.time()
         while self.can_next_level() and not self.new_level:
             direction, path = self.map.get_next_direction(self.player, self.falling_items)
@@ -295,6 +299,7 @@ class Env:
         if self.new_level:
             return 0
 
+        self.update_navigation()
         direction, path, self.move_index = self.map.get_shot_place_direction(
             self.player, self.move_index, self.move_end
         )

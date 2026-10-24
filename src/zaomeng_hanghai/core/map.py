@@ -92,6 +92,7 @@ class Map:
         self.distance_mazes = None
 
         self.debug_image = None
+        self.flee_mazes = None
 
     def init_task_maps(self):
         self.task_maps[0] = np.array([
@@ -490,6 +491,9 @@ class Map:
 
     def get_flee_maze(self, player, bullets, enemy_list):
         origin_maze = self.get_maze()
+        for enemy in enemy_list:
+            if enemy is not None:
+                enemy.prepare_navigation(origin_maze)
         moveable_maze = np.logical_or(origin_maze, self.map_template_without_exit)
         obstacle_distance_maze = self.get_distance_maze()
         end_region = np.ones((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)

@@ -229,18 +229,20 @@ class Env:
             self.action_manager.take_action_direction(direction)
             self.render()
 
-            time.sleep(0.1)
+            time.sleep(0.035)
             self.update()
 
         while self.new_level:
             if self.map.get_task() == 5:
+                loop_act(None)
                 if not self.enemy_list:
                     continue
+                print(self.enemy_list[0].xn)
                 if self.map.map_index == 1:
-                    if self.enemy_list[0].xn < 0.57:
+                    if self.enemy_list[0].xn < 0.6:
                         continue
                 elif self.map.map_index == 5:
-                    if 0.43 < self.enemy_list[0].xn < 0.57:
+                    if 0.4 < self.enemy_list[0].xn < 0.6:
                         continue
             elif self.map.get_task() == 0:
                 time.sleep(1)
@@ -432,6 +434,6 @@ if __name__ == "__main__":
     else:
         target_ = 3
 
-    env_ = Env(render_enabled=True)
+    env_ = Env()
     env_.init_window()
     auto_loop(env_, target_)

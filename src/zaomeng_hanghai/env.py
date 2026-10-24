@@ -220,16 +220,16 @@ class Env:
         while self.new_level:
             if self.map.get_task() == 5:
                 self.action_manager.take_action(0)
-                time.sleep(2)
+                time.sleep(1)
             elif self.map.map_index == 1:
                 if self.map.level == 3:
                     self.action_manager.take_action(0)
-                    time.sleep(2)
+                    time.sleep(1)
             elif self.map.map_index == 3:
                 if self.map.level == 1:
                     direction = Direction.Down
                     self.action_manager.take_action_direction(direction)
-                    time.sleep(2)
+                    time.sleep(1)
             elif self.map.map_index == 4:
                 if self.map.level == 1:
                     loop_act(Direction.DownLeft)
@@ -337,6 +337,9 @@ class Env:
                     (255, 255, 255), 1)
         # 在右上角显示关卡
         cv2.putText(image, f"Level: {self.map.level}", (250, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # 在关卡下方显示当前布局模板编号
+        cv2.putText(image, f"Task: {self.map.get_task()}", (250, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
         # 在右下角显示帧率
         cv2.putText(image, f"FPS: {fps}", (250, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         # 左下角显示拥有物品
@@ -351,31 +354,36 @@ class Env:
         cv2.waitKey(1)
 
 
+def auto_loop(env, target=3):
+    # 传入已经初始化好窗口的Env实例
+    success_count = 0
+
+    print("Start Loop")
+    while success_count < target:
+        print(f"Success {success_count}/{target}")
+
+        state, status = env.reset()
+        while status == 0:
+            status = env.auto_step()
+            if status == 1:
+                success_count += 1
+        time.sleep(1)
+        env.game_window.recover(status)
+
+
 if __name__ == "__main__":
+    from pathlib import Path
     import sys
-    import traceback
+    import os
 
-    try:
-        epochs = 100
-        env = Env()
-        env.init_window()
+    PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
+    os.chdir(PROJECT_DIR)
 
-        print("Start Loop")
-        for i in range(epochs):
-            state, status = env.reset()
-            while status == 0:
-                status = env.auto_step()
-                if status:
-                    break
-            time.sleep(1)
-            env.game_window.recover(status)
-            time.sleep(1)
+    if len(sys.argv) > 1:
+        target_ = int(sys.argv[1])
+    else:
+        target_ = 3
 
-    except Exception as e:
-        print(traceback.format_exc())
-        if len(sys.argv) <= 1:
-            raise e
-
-    finally:
-        if len(sys.argv) > 1:
-            input("Press Enter to continue...")
+    env_ = Env()
+    env_.init_window()
+    auto_loop(env_, target_)

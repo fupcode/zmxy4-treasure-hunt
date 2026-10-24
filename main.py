@@ -1,9 +1,8 @@
-import time
 import tkinter as tk
 import win32gui
 import traceback
 
-from zaomeng_hanghai.env import Env
+from zaomeng_hanghai.env import Env, auto_loop
 from zaomeng_hanghai.game_window import GameWindowError
 
 
@@ -69,7 +68,6 @@ def main():
     need_success_count = get_count_from_user()
 
     env = Env()
-    success_count = 0
     try:
         env.init_window()
     except GameWindowError as e:
@@ -82,23 +80,7 @@ def main():
         env.init_window(outer_window_box=region)
 
     print("Start Loop")
-    while True:
-        state, status = env.reset()
-        while status == 0:
-            status = env.auto_step()
-            if status:
-                break
-        time.sleep(1)
-        if status == 1:
-            success_count += 1
-        end = success_count >= need_success_count
-        env.game_window.recover(status, end=end)
-        if status == 1:
-            print(f"Success {success_count}/{need_success_count}")
-        if end:
-            break
-        time.sleep(1)
-
+    auto_loop(env, need_success_count)
     input("自动航海完毕，按 Enter 退出...")
 
 

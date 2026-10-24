@@ -47,7 +47,7 @@ def click(x, y):
 
 
 class ActionManager:
-    def __init__(self, action_interval=0.08):
+    def __init__(self, action_interval=0.02):
         self.action_interval = action_interval
 
         self.fire_interval = 0.6

@@ -115,8 +115,6 @@ class Env:
         if status_code:
             return status_code
 
-        # 使动作管理器同步时间
-        self.action_manager.set_action_start_time()
         maze = self.map.get_maze()
 
         player = Player(self.game_window.player_box, maze)
@@ -173,6 +171,9 @@ class Env:
             if fired_enemy is not None:
                 fired_enemy.set_fired(current_time, cool_down)
 
+        # 使动作管理器同步时间
+        self.action_manager.set_action_start_time()
+
         # 准备fire动作
         fire_direction = self.map.fire_direction(self.player, self.enemy_list)
         self.action_manager.set_fire_direction(fire_direction)
@@ -205,9 +206,8 @@ class Env:
         return status_code
 
     def try_start_level(self):
-        def loop_act(direction=None, keep_direction=False):
-            if not keep_direction:
-                self.action_manager.take_action_direction(direction)
+        def loop_act(direction):
+            self.action_manager.take_action_direction(direction)
             self.render()
 
             time.sleep(0.1)
@@ -215,9 +215,14 @@ class Env:
 
         while self.new_level:
             if self.map.get_task() == 5:
-                loop_act(keep_direction=True)
-                if not self.enemy_list or 0.42 < self.enemy_list[0].xn < 0.58:
+                if not self.enemy_list:
                     continue
+                if self.map.map_index == 1:
+                    if self.enemy_list[0].xn < 0.57:
+                        continue
+                elif self.map.map_index == 5:
+                    if 0.43 < self.enemy_list[0].xn < 0.57:
+                        continue
             elif self.map.get_task() == 0:
                 time.sleep(1)
 

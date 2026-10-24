@@ -37,7 +37,6 @@ class GameWindow:
         self.window_size = None
         self.left_top_mask_rate = (0.078, 0.14)
         self.left_bottom_mask_rate = (0.326, 0.872)
-        self.keys = ['boss', 'bullet', 'dan', 'enemy', 'fan', 'jia', 'pao', 'player']
 
         self.window_image = None
         self.hit_point = None
@@ -45,7 +44,6 @@ class GameWindow:
 
         self.player_box = None
         self.enemy_boxes = None
-        self.boss_box = None
         self.bullet_list_normal = None
         self.falling_items_normal = None
 
@@ -106,7 +104,6 @@ class GameWindow:
 
         self.player_box = self.filter_player(det)
         self.enemy_boxes = det['enemy']
-        self.boss_box = self.filter_boss(det)
         self.falling_items_normal = self.filter_falling_items(det)
         self.bullet_list_normal = self.filter_bullet(det)
 
@@ -207,22 +204,6 @@ class GameWindow:
                 player = player_box
 
         return player
-
-    def filter_boss(self, det):
-        boss_list = det['boss']
-        if len(boss_list) == 0:
-            return None
-        if len(boss_list) == 1:
-            return boss_list[0]
-
-        max_confidence = 0
-        boss = None
-        for boss_box in boss_list:
-            if boss_box.conf > max_confidence:
-                max_confidence = boss_box.conf
-                boss = boss_box
-
-        return boss
 
     def filter_falling_items(self, det):
         falling_items = []

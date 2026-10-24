@@ -1300,7 +1300,6 @@ class Env:
 
         self.player = None
         self.enemy_list = None
-        self.boss = None
         self.bullets = Bullets()
         self.falling_items = None
         self.new_level = False
@@ -1352,9 +1351,6 @@ class Env:
 
         self.enemy_list.update(self.game_window.enemy_boxes, maze)
         self.enemy_list.sort_by(self.player)
-        self.boss = None
-        if self.game_window.boss_box is not None:
-            self.boss = Enemy(self.game_window.boss_box, maze)
 
         self.action_manager.update_pao(self.game_window.items["pao"])
 
@@ -1387,7 +1383,7 @@ class Env:
                 fired_enemy.set_fired(current_time, cool_down)
 
         if self.map.level > 0:
-            self.map.update(self.player, self.bullets, self.enemy_list + [self.boss])
+            self.map.update(self.player, self.bullets, self.enemy_list)
 
         return status_code
 
@@ -1428,10 +1424,9 @@ class Env:
             reward -= 0.8
         if self.player.in_forbidden_area():
             reward -= 0.4
-        for enemy in self.enemy_list + [self.boss]:
-            if enemy is not None:
-                if enemy.x1 < self.player.x < enemy.x2 and enemy.y1 < self.player.y < enemy.y2:
-                    reward -= 0.4
+        for enemy in self.enemy_list:
+            if enemy.x1 < self.player.x < enemy.x2 and enemy.y1 < self.player.y < enemy.y2:
+                reward -= 0.4
 
         if status_code:
             if status_code == 1:
@@ -1504,10 +1499,11 @@ class Env:
         task = self.map.get_task()
         state[8:17] = np.eye(9)[task]
 
-        if self.boss is not None:
-            state[17:20] = self.boss.state_encode()
+        # 统一编码最近的六个敌人，保持状态向量总长度不变。
         for i, enemy in enumerate(self.enemy_list):
-            state[20 + i * 3:20 + i * 3 + 3] = enemy.state_encode()
+            if i >= 6:
+                break
+            state[17 + i * 3:20 + i * 3] = enemy.state_encode()
         state[35:63] = self.bullets.state_encode()
 
         # print(state[0:7])
@@ -1521,11 +1517,10 @@ class Env:
         return state
 
     def fire(self):
-        if len(self.enemy_list) == 0 and self.boss is None:
+        if len(self.enemy_list) == 0:
             return -0.1
 
-        target_list = self.enemy_list + [self.boss]
-        direction = self.map.fire_direction(self.player, target_list)
+        direction = self.map.fire_direction(self.player, self.enemy_list)
         if direction is not None:
             fired = self.action_manager.fire_to(direction)
             return 0.1 + fired * 0.4
@@ -1572,7 +1567,7 @@ class Env:
             self.new_level = False
 
     def can_next_level(self):
-        return len(self.enemy_list) == 0 and self.boss is None and len(self.bullets) == 0
+        return len(self.enemy_list) == 0 and len(self.bullets) == 0
 
     def try_next_level(self):
         loop_start_time = time.time()
@@ -1625,9 +1620,7 @@ class Env:
 
         cv2.circle(image, (self.player.x, self.player.y), 4, (0, 255, 0), -1)
         cv2.circle(image, (self.player.x, self.player.y), 1, (0, 0, 255), -1)
-        for enemy in self.enemy_list + [self.boss]:
-            if enemy is None:
-                continue
+        for enemy in self.enemy_list:
             cv2.circle(image, (enemy.x, enemy.y), 4, (0, 0, 255), -1)
             cv2.rectangle(image, (enemy.x1, enemy.y1), (enemy.x2, enemy.y2), (0, 0, 255), 2)
         for bullet in self.bullets:

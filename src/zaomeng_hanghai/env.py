@@ -60,6 +60,9 @@ class Env:
         self.falling_items = FallingItems()
         self.new_level = False
 
+        self.move_index = None
+        self.move_end = None
+
         self.fps_calculator = FrameRateCalculator()
         self.map = Map(stay_timeout)
         self.stay_timeout = stay_timeout
@@ -80,6 +83,9 @@ class Env:
         self.action_manager.reset()
         self.enemy_list = EnemyList()
         self.falling_items = FallingItems()
+
+        self.move_index = None
+        self.move_end = None
 
         self.update()
 
@@ -164,6 +170,16 @@ class Env:
 
         return status_code
 
+    def step(self, action=None):
+        assert action is None
+
+        self.try_fire()
+        self.render()
+        status_code = self.update()
+        state = self.state_encode()
+
+        return state, status_code
+
     def try_fire(self):
         if len(self.enemy_list) == 0:
             return -0.1
@@ -238,11 +254,11 @@ class Env:
             return 0
         if self.new_level:
             return 0
-        self.move_index = None
-        self.move_end = None
 
         start_time = time.time()
-        direction, path, self.move_index = self.map.get_shot_place_direction(self.player, self.move_index, self.move_end)
+        direction, path, self.move_index = self.map.get_shot_place_direction(
+            self.player, self.move_index, self.move_end
+        )
         if direction is None:
             self.action_manager.take_action(0)
             self.render()

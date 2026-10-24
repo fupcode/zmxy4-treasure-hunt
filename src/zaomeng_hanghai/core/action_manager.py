@@ -9,9 +9,6 @@ from .direction import (direction_list, is_reverse_direction, is_single_directio
                         is_horizontal_direction, get_horizontal_and_vertical_direction)
 
 
-TICK = 0.035
-
-
 def key_down(string):
     """模拟按下键"""
     for char in string:
@@ -50,7 +47,7 @@ def click(x, y):
 
 
 class ActionManager:
-    def __init__(self, action_interval=0.05):
+    def __init__(self, action_interval=0.08):
         self.action_interval = action_interval
 
         self.fire_interval = 0.6
@@ -131,8 +128,8 @@ class ActionManager:
             return old_horizontal, new_horizontal
         return self.last_direction, direction
 
-    def set_action_start_time(self, t):
-        self.action_start_time = t
+    def set_action_start_time(self):
+        self.action_start_time = time.time()
 
     def set_fire_direction(self, direction):
         self.fire_direction = direction
@@ -150,9 +147,10 @@ class ActionManager:
             fire_suspend_direction, fire_temporary_direction = self.get_fire_direction_adjustment(self.fire_direction)
             stop_to(fire_suspend_direction)
             move_to(fire_temporary_direction)
-            time.sleep(TICK)
+            time.sleep(0.03)
             key_down("J")
             self.last_fire_time = time.time()
+            time.sleep(0.003)
 
             stop_to(fire_temporary_direction)
             move_to(fire_suspend_direction)

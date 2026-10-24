@@ -115,6 +115,8 @@ class Env:
         if status_code:
             return status_code
 
+        # 使动作管理器同步时间
+        self.action_manager.set_action_start_time()
         maze = self.map.get_maze()
 
         player = Player(self.game_window.player_box, maze)
@@ -170,9 +172,6 @@ class Env:
                     fired_enemy = enemy
             if fired_enemy is not None:
                 fired_enemy.set_fired(current_time, cool_down)
-
-        # 使动作管理器同步时间
-        self.action_manager.set_action_start_time(current_time)
 
         # 准备fire动作
         fire_direction = self.map.fire_direction(self.player, self.enemy_list)

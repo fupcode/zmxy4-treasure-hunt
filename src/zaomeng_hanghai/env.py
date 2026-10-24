@@ -82,6 +82,7 @@ class Env:
     def reset(self):
         self.action_manager.reset()
         self.enemy_list = EnemyList()
+        self.bullets = Bullets()
         self.falling_items = FallingItems()
 
         self.move_index = None
@@ -93,13 +94,13 @@ class Env:
         map_index = self.game_window.get_map_index_at_start()
         self.map.reset(map_index)
 
-        status = self.try_next_level()
+        status_code = self.try_next_level()
         state = self.state_encode()
         print("游戏开始！大地图：", map_index)
 
-        return state, status
+        return state, status_code
 
-    def update(self):
+    def update(self) -> int:
         status_code = self.game_window.update()
         start_time = time.time()
         while status_code == -1:
@@ -112,14 +113,25 @@ class Env:
         maze = self.map.get_maze()
 
         player = Player(self.game_window.player_box, maze)
-        if self.player is not None:
-            if self.player.is_next(player):
-                self.map.next_level()
-                self.new_level = True
-                print(f"进入第 {self.map.level} 关：关卡类型 {self.map.get_task()}")
+        if self.player and self.player.is_next(player):
+            self.map.next_level()
+            self.new_level = True
+
+            print(f"进入第 {self.map.level} 关：关卡类型 {self.map.get_task()}")
+
+            # 下一关可能使用不同的地图
+            maze = self.map.get_maze()
+            player = Player(self.game_window.player_box, maze)
+
+            # 清除上一关的追踪记录，避免跨关误匹配
+            self.enemy_list.clear()
+            self.bullets.clear()
+            self.falling_items.clear()
+
         self.player = player
 
         self.bullets.update(self.game_window.bullet_list_normal, self.player)
+        # 子弹列表已经在 update 内部按距离排序
 
         self.enemy_list.update(self.game_window.enemy_boxes, maze)
         self.enemy_list.sort_by(self.player)
@@ -161,13 +173,13 @@ class Env:
 
     def auto_step(self):
         self.try_fire()
-        status_code = self.move_to_enemy_and_update()
+        status_code = self.move_to_enemy_and_update()  # 含有update
 
         if status_code:
             return status_code
 
-        self.try_start_level()
-        status_code = self.try_next_level()
+        self.try_start_level()  # 含有update
+        status_code = self.try_next_level()  # 含有update
 
         return status_code
 
@@ -192,9 +204,10 @@ class Env:
         return -0.1
 
     def try_start_level(self):
-        def loop_act(direction):
+        def loop_act(direction=None, keep_direction=False):
             self.try_fire()
-            self.action_manager.take_action_direction(direction)
+            if not keep_direction:
+                self.action_manager.take_action_direction(direction)
             self.render()
 
             time.sleep(0.1)
@@ -202,12 +215,12 @@ class Env:
 
         while self.new_level:
             if self.map.get_task() == 5:
-                self.action_manager.take_action(0)
+                loop_act(keep_direction=True)
+                if not self.enemy_list or 0.42 < self.enemy_list[0].xn < 0.58:
+                    continue
+            elif self.map.get_task() == 0:
                 time.sleep(1)
-            elif self.map.map_index == 1:
-                if self.map.level == 3:
-                    self.action_manager.take_action(0)
-                    time.sleep(1)
+
             elif self.map.map_index == 3:
                 if self.map.level == 1:
                     direction = Direction.Down
@@ -370,13 +383,13 @@ def auto_loop(env: Env, target=3):
     while success_count < target:
         print(f"Success {success_count}/{target}")
 
-        state, status = env.reset()
-        while status == 0:
-            status = env.auto_step()
-            if status == 1:
+        state, status_code = env.reset()
+        while status_code == 0:
+            status_code = env.auto_step()
+            if status_code == 1:
                 success_count += 1
         time.sleep(1)
-        env.game_window.recover(status)
+        env.game_window.recover(status_code)
 
 
 if __name__ == "__main__":

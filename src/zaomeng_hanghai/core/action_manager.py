@@ -50,22 +50,26 @@ def click(x, y):
 
 
 class ActionManager:
-    def __init__(self):
+    def __init__(self, action_interval=0.05):
+        self.action_interval = action_interval
+
         self.fire_interval = 0.6
         self.pao = False
         self.last_fire_time = time.time()
         self.last_direction = None
 
+        self.fire_reward = 0
+        self.fire_direction = None
+
+        self.action_start_time = time.time()
+
     def reset(self):
         self.fire_interval = 0.6
         self.pao = False
-        self.last_fire_time = time.time()
+        self.last_direction = None
 
     def _can_fire(self):
-        if time.time() - self.last_fire_time > self.fire_interval:
-            self.last_fire_time = time.time()
-            return True
-        return False
+        return time.time() - self.last_fire_time > self.fire_interval
 
     def get_fire_cool_down(self):
         return max(0.0, self.last_fire_time + self.fire_interval - time.time())
@@ -109,20 +113,9 @@ class ActionManager:
                 return move_horizontal, None
             return move_horizontal, fire_direction
 
-    def fire_to(self, direction):
-        if self._can_fire():
-            suspend_direction, temporary_direction = self.get_fire_direction_adjustment(direction)
-            stop_to(suspend_direction)
-            move_to(temporary_direction)
-            time.sleep(TICK)
-            key_down("J")
-            key_up("J")
-            stop_to(temporary_direction)
-            move_to(suspend_direction)
-            return 1
-        return 0
-
     def modify_direction(self, direction):
+        if direction is None:
+            return self.last_direction, None
         if self.last_direction is None:
             return None, direction
         if direction == self.last_direction:
@@ -138,17 +131,58 @@ class ActionManager:
             return old_horizontal, new_horizontal
         return self.last_direction, direction
 
+    def set_action_start_time(self, t):
+        self.action_start_time = t
+
+    def set_fire_direction(self, direction):
+        self.fire_direction = direction
+
+    def fire(self):
+        if self._can_fire():
+            if self.fire_direction is None:
+                # 能开火，没有开火机会，扣小分
+                self.fire_reward = -0.05
+                return 0
+
+            # 能开火，有开火机会，奖励1分
+            self.fire_reward = 1
+
+            fire_suspend_direction, fire_temporary_direction = self.get_fire_direction_adjustment(self.fire_direction)
+            stop_to(fire_suspend_direction)
+            move_to(fire_temporary_direction)
+            time.sleep(TICK)
+            key_down("J")
+            self.last_fire_time = time.time()
+
+            stop_to(fire_temporary_direction)
+            move_to(fire_suspend_direction)
+            key_up("J")
+
+            return 1
+
+        if self.fire_direction is None:
+            # 不能开火，避战，奖励小分
+            self.fire_reward = 0.02
+        else:
+            # 不能开火，和敌人对峙，扣大分
+            self.fire_reward = -0.1
+        return 0
+
     def take_action_direction(self, direction):
+        self.fire()
+
         stop_direction, move_direction = self.modify_direction(direction)
         stop_to(stop_direction)
         move_to(move_direction)
-        move_to(direction)
         self.last_direction = direction
+
+        remaining_time = self.action_start_time + self.action_interval - time.time()
+        if remaining_time > 0:
+            time.sleep(remaining_time)
 
     def take_action(self, action):
         if action == 0:
-            stop_to(self.last_direction)
-            self.last_direction = None
+            self.take_action_direction(None)
             return
         direction = direction_list[action - 1]
         self.take_action_direction(direction)

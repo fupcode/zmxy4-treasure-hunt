@@ -38,7 +38,7 @@ from .constants import (
 
 
 class Map:
-    def __init__(self, stay_timeout):
+    def __init__(self):
         # 三个常量
         self.route_list = [
             (1, 1, 2, 3, 4),
@@ -89,8 +89,6 @@ class Map:
 
         self.level_mazes = None
         self.distance_mazes = None
-        self.stay_timeout = stay_timeout
-        self.enter_time = None
 
         self.debug_image = None
 
@@ -216,8 +214,6 @@ class Map:
         self.next_exit = self.route[self.level]
         self.level_mazes, self.distance_mazes = self.reset_map_list((MAZE_WIDTH, MAZE_HEIGHT), self.map_template)
 
-        self.enter_time = time.time()
-
     def reset_map_list(self, maze_size, map_template):
         level_mazes = []
         distance_mazes = []
@@ -258,11 +254,6 @@ class Map:
         if self.level == 0:
             return -1
         return self.tasks_list[self.map_index][self.level - 1]
-
-    def is_stay_timeout(self):
-        if time.time() - self.enter_time > self.stay_timeout:
-            return True
-        return False
 
     def get_distance_maze(self):
         if self.level == 0:
@@ -312,7 +303,6 @@ class Map:
 
     def next_level(self):
         self.level += 1
-        self.enter_time = time.time()
         if self.level == 5:
             self.level = 0
 

@@ -48,13 +48,12 @@ class Env:
     # 角色 7 + 关卡进度 1 + 关卡类型 9 + 敌人 15 + 弹幕 28。
     state_space = 17 + EnemyList.state_dim + Bullets.state_dim
 
-    def __init__(self, timeout=5, stay_timeout=180, act_interval=0.02):
+    def __init__(self, timeout=5, stay_timeout=30):
         self.timeout = timeout
         self.game_window = GameWindow()
         self.window_size = None
         self.action_manager = ActionManager()
         self.action_space = 9
-        self.act_interval = act_interval
 
         self.player: Player | None = None
         self.enemy_list = EnemyList()
@@ -66,7 +65,7 @@ class Env:
         self.move_end = None
 
         self.fps_calculator = FrameRateCalculator()
-        self.map = Map(stay_timeout)
+        self.map = Map()
         self.stay_timeout = stay_timeout
 
     def init_window(self, outer_window_box=None):
@@ -172,13 +171,19 @@ class Env:
             if fired_enemy is not None:
                 fired_enemy.set_fired(current_time, cool_down)
 
+        # 使动作管理器同步时间
+        self.action_manager.set_action_start_time(current_time)
+
+        # 准备fire动作
+        fire_direction = self.map.fire_direction(self.player, self.enemy_list)
+        self.action_manager.set_fire_direction(fire_direction)
+
         if self.map.level > 0:
             self.map.update(self.player, self.bullets, self.enemy_list)
 
         return status_code
 
     def auto_step(self):
-        self.try_fire()
         status_code = self.move_to_enemy_and_update()  # 含有update
 
         if status_code:
@@ -189,10 +194,8 @@ class Env:
 
         return status_code
 
-    def step(self, action=None):
-        assert action is None
-
-        self.try_fire()
+    def step(self, action):
+        self.action_manager.take_action(action)
         self.render()
         status_code = self.update()
         if status_code:
@@ -202,19 +205,8 @@ class Env:
         self.new_level = False
         return status_code
 
-    def try_fire(self):
-        if len(self.enemy_list) == 0:
-            return -0.1
-
-        direction = self.map.fire_direction(self.player, self.enemy_list)
-        if direction is not None:
-            fired = self.action_manager.fire_to(direction)
-            return 0.1 + fired * 0.4
-        return -0.1
-
     def try_start_level(self):
         def loop_act(direction=None, keep_direction=False):
-            self.try_fire()
             if not keep_direction:
                 self.action_manager.take_action_direction(direction)
             self.render()
@@ -279,12 +271,11 @@ class Env:
         if self.new_level:
             return 0
 
-        start_time = time.time()
         direction, path, self.move_index = self.map.get_shot_place_direction(
             self.player, self.move_index, self.move_end
         )
         if direction is None:
-            self.action_manager.take_action(0)
+            self.action_manager.take_action_direction(None)
             self.render()
             status_code = self.update()
             return status_code
@@ -292,10 +283,6 @@ class Env:
         self.move_end = path[-1]
         self.action_manager.take_action_direction(direction)
         self.render(path)
-
-        delay_time = self.act_interval - (time.time() - start_time)
-        if delay_time > 0:
-            time.sleep(delay_time)
 
         status_code = self.update()
 
@@ -390,23 +377,6 @@ class Env:
         cv2.waitKey(1)
 
 
-def manual_loop(env: Env, target=100):
-    # 传入已经初始化好窗口的Env实例
-    success_count = 0
-
-    print("Start Loop")
-    while success_count < target:
-        print(f"Success {success_count}/{target}")
-
-        state, status_code = env.reset()
-        while status_code == 0:
-            status_code = env.step(None)
-            if status_code == 1:
-                success_count += 1
-        time.sleep(1)
-        env.game_window.recover(status_code)
-
-
 def auto_loop(env: Env, target=100):
     # 传入已经初始化好窗口的Env实例
     success_count = 0
@@ -439,4 +409,4 @@ if __name__ == "__main__":
 
     env_ = Env()
     env_.init_window()
-    manual_loop(env_, target_)
+    auto_loop(env_, target_)

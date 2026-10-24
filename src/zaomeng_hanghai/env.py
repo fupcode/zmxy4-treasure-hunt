@@ -310,10 +310,9 @@ class Env:
         task = self.map.get_task()
         state[8:17] = np.eye(9)[task]
 
-        # 统一编码最近的六个敌人，保持状态向量总长度不变。
+        # 统一编码最近的5个敌人，保持状态向量总长度不变。
         for i, enemy in enumerate(self.enemy_list):
-            if i >= 6:
-                break
+            assert i < 5, "最多5个敌人"
             state[17 + i * 3:20 + i * 3] = enemy.state_encode()
         state[35:63] = self.bullets.state_encode()
 

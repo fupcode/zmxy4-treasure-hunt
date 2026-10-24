@@ -165,7 +165,7 @@ class Enemy:
 
         return distance_array
 
-    def calculate_vision(self, map_array, vertical_length, horizontal_length, group_size=5):
+    def calculate_vision(self, map_array, vertical_length, horizontal_length, strip_width=5):
         # 初始化视野数组，值默认为1
         vision_array = np.ones_like(map_array, dtype=np.float32)
 
@@ -180,8 +180,8 @@ class Enemy:
             return distance / max_distance
 
         # 向上扩展视野
-        for x_start in range(self.x1, self.x2, group_size):
-            x_end = min(x_start + group_size, self.x2)
+        for x_start in range(self.x1, self.x2, strip_width):
+            x_end = min(x_start + strip_width, self.x2)
             for dy in range(1, vertical_length + 1):
                 y = self.y1 - dy
                 if y < 0 or np.any(map_array[y, x_start:x_end] == 1):
@@ -190,8 +190,8 @@ class Enemy:
                 vision_array[y, x_start:x_end] = decay_value
 
         # 向下扩展视野
-        for x_start in range(self.x1, self.x2, group_size):
-            x_end = min(x_start + group_size, self.x2)
+        for x_start in range(self.x1, self.x2, strip_width):
+            x_end = min(x_start + strip_width, self.x2)
             for dy in range(1, vertical_length + 1):
                 y = self.y2 + dy - 1
                 if y >= map_height or np.any(map_array[y, x_start:x_end] == 1):
@@ -200,8 +200,8 @@ class Enemy:
                 vision_array[y, x_start:x_end] = decay_value
 
         # 向左扩展视野
-        for y_start in range(self.y1, self.y2, group_size):
-            y_end = min(y_start + group_size, self.y2)
+        for y_start in range(self.y1, self.y2, strip_width):
+            y_end = min(y_start + strip_width, self.y2)
             for dx in range(1, horizontal_length + 1):
                 x = self.x1 - dx
                 if x < 0 or np.any(map_array[y_start:y_end, x] == 1):
@@ -210,8 +210,8 @@ class Enemy:
                 vision_array[y_start:y_end, x] = decay_value
 
         # 向右扩展视野
-        for y_start in range(self.y1, self.y2, group_size):
-            y_end = min(y_start + group_size, self.y2)
+        for y_start in range(self.y1, self.y2, strip_width):
+            y_end = min(y_start + strip_width, self.y2)
             for dx in range(1, horizontal_length + 1):
                 x = self.x2 + dx - 1
                 if x >= map_width or np.any(map_array[y_start:y_end, x] == 1):

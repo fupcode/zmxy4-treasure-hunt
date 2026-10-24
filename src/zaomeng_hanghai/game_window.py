@@ -97,7 +97,6 @@ class GameWindow:
                 return -2
             if self.is_successful(self.window_image):
                 return 1
-            print(f"[GameWindow] 未知状态，地图数量: {len(map_contours)}, 血量: {self.hit_point}")
             return -1
 
         det = self.model(self.window_image)

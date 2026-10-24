@@ -45,8 +45,8 @@ class FrameRateCalculator:
 
 
 class Env:
-    def __init__(self, time_out=3, stay_time_out=180, act_interval=0.02):
-        self.timeout = time_out
+    def __init__(self, timeout=5, stay_timeout=180, act_interval=0.02):
+        self.timeout = timeout
         self.game_window = GameWindow()
         self.window_size = None
         self.action_manager = ActionManager()
@@ -54,15 +54,15 @@ class Env:
         self.state_space = 7 + 10 + 3 * 6 + 7 * 4
         self.act_interval = act_interval
 
-        self.player = None
-        self.enemy_list = None
+        self.player: Player | None = None
+        self.enemy_list = EnemyList()
         self.bullets = Bullets()
-        self.falling_items = None
+        self.falling_items = FallingItems()
         self.new_level = False
 
         self.fps_calculator = FrameRateCalculator()
-        self.map = Map(stay_time_out)
-        self.stay_time_out = stay_time_out
+        self.map = Map(stay_timeout)
+        self.stay_timeout = stay_timeout
 
     def init_window(self, outer_window_box=None):
         self.game_window.init_window(outer_window_box)
@@ -85,6 +85,7 @@ class Env:
 
         map_index = self.game_window.reset()
         self.map.reset(map_index)
+        print("游戏开始！大地图：", map_index)
 
         status = self.try_next_level()
         state = self.state_encode()
@@ -92,7 +93,14 @@ class Env:
         return state, status
 
     def update(self):
-        status_code = self.wait_loading()
+        status_code = self.game_window.update()
+        start_time = time.time()
+        while status_code == -1:
+            time.sleep(0.1)
+            status_code = self.game_window.update()
+
+            if time.time() - start_time > self.timeout:
+                raise TimeoutError("Loading timeout")
 
         maze = self.map.get_maze()
 
@@ -101,6 +109,7 @@ class Env:
             if self.player.is_next(player):
                 self.map.next_level()
                 self.new_level = True
+                print(f"进入第 {self.map.level} 关：关卡类型 {self.map.get_task()}")
         self.player = player
 
         self.bullets.update(self.game_window.bullet_list_normal, self.player)
@@ -143,18 +152,6 @@ class Env:
 
         return status_code
 
-    def wait_loading(self):
-        start_time = time.time()
-        status_code = self.game_window.update()
-        while status_code == -1:
-            time.sleep(0.1)
-            status_code = self.game_window.update()
-
-            if time.time() - start_time > self.timeout:
-                raise TimeoutError("Loading timeout")
-
-        return status_code
-
     def auto_step(self):
         self.try_fire()
         status_code = self.move_to_enemy_and_update()
@@ -166,38 +163,6 @@ class Env:
         status_code = self.try_next_level()
 
         return status_code
-
-    def state_encode(self):
-        state = np.zeros(self.state_space, dtype=np.float32)
-        state[0] = self.player.xn
-        state[1] = self.player.yn
-        state[2] = self.action_manager.get_fire_cool_down()
-        state[3] = self.game_window.hit_point
-        pao, dan, fan = self.game_window.items.values()
-        state[4] = np.array(pao, dtype=np.float32)
-        state[5] = np.array(dan, dtype=np.float32)
-        state[6] = np.array(fan, dtype=np.float32)
-
-        state[7] = self.map.level
-        task = self.map.get_task()
-        state[8:17] = np.eye(9)[task]
-
-        # 统一编码最近的六个敌人，保持状态向量总长度不变。
-        for i, enemy in enumerate(self.enemy_list):
-            if i >= 6:
-                break
-            state[17 + i * 3:20 + i * 3] = enemy.state_encode()
-        state[35:63] = self.bullets.state_encode()
-
-        # print(state[0:7])
-        # print(state[7:17])
-        # for i in range(6):
-        #     print(state[17+i*3:17+i*3+3])
-        # for i in range(4):
-        #     print(state[35+i*7:35+i*7+7])
-        # print()
-
-        return state
 
     def try_fire(self):
         if len(self.enemy_list) == 0:
@@ -263,7 +228,7 @@ class Env:
 
             if status_code:
                 return status_code
-            if time.time() - loop_start_time > self.stay_time_out:
+            if time.time() - loop_start_time > self.stay_timeout:
                 return -3
 
         return 0
@@ -296,6 +261,30 @@ class Env:
 
         return status_code
 
+    def state_encode(self):
+        state = np.zeros(self.state_space, dtype=np.float32)
+        state[0] = self.player.xn
+        state[1] = self.player.yn
+        state[2] = self.action_manager.get_fire_cool_down()
+        state[3] = self.game_window.hit_point
+        pao, dan, fan = self.game_window.items.values()
+        state[4] = np.array(pao, dtype=np.float32)
+        state[5] = np.array(dan, dtype=np.float32)
+        state[6] = np.array(fan, dtype=np.float32)
+
+        state[7] = self.map.level
+        task = self.map.get_task()
+        state[8:17] = np.eye(9)[task]
+
+        # 统一编码最近的六个敌人，保持状态向量总长度不变。
+        for i, enemy in enumerate(self.enemy_list):
+            if i >= 6:
+                break
+            state[17 + i * 3:20 + i * 3] = enemy.state_encode()
+        state[35:63] = self.bullets.state_encode()
+
+        return state
+
     def render(self, path=None):
         image = np.zeros((MAZE_HEIGHT, MAZE_WIDTH, 3), dtype=np.uint8)
         if self.map.debug_image is not None:
@@ -319,6 +308,7 @@ class Env:
         for item in self.falling_items:
             cv2.circle(image, (item.x, item.y), 4, (255, 255, 0), -1)
 
+        # 绘制迷宫
         maze = self.map.get_maze()
         image[maze] = 128
 
@@ -354,7 +344,7 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env, target=3):
+def auto_loop(env: Env, target=3):
     # 传入已经初始化好窗口的Env实例
     success_count = 0
 

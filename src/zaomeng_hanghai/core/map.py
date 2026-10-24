@@ -38,7 +38,7 @@ from .constants import (
 
 
 class Map:
-    def __init__(self, stay_time_out):
+    def __init__(self, stay_timeout):
         # 三个常量
         self.route_list = [
             (1, 1, 2, 3, 4),
@@ -89,7 +89,7 @@ class Map:
 
         self.level_mazes = None
         self.distance_mazes = None
-        self.stay_time_out = stay_time_out
+        self.stay_timeout = stay_timeout
         self.enter_time = None
 
         self.debug_image = None
@@ -259,8 +259,8 @@ class Map:
             return -1
         return self.tasks_list[self.map_index][self.level - 1]
 
-    def is_stay_time_out(self):
-        if time.time() - self.enter_time > self.stay_time_out:
+    def is_stay_timeout(self):
+        if time.time() - self.enter_time > self.stay_timeout:
             return True
         return False
 

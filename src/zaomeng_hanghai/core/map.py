@@ -59,12 +59,16 @@ class Map:
             (5, 8, 7, 3),
             (6, 7, 2, 3),
         ]
+
+        # 第几套大地图，共有7种
+        self.map_index = None
+
+        # 9种任务地图布局，每个地图为7*13的bool矩阵，1表示障碍物，0表示可通行
         self.task_maps = np.zeros((9, 7, 13), dtype=np.bool_)
 
-        # 两个个变量，reset时初始化为当前map_index对应的值
+        # reset时初始化为当前map_index对应的路线，value为0-4，表示右下上左
         self.route = None
 
-        self.map_index = None
         self.level = 0
         self.next_exit = None
 

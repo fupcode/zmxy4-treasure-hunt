@@ -45,13 +45,15 @@ class FrameRateCalculator:
 
 
 class Env:
+    # 角色 7 + 关卡进度 1 + 关卡类型 9 + 敌人 15 + 弹幕 28。
+    state_space = 17 + EnemyList.state_dim + Bullets.state_dim
+
     def __init__(self, timeout=5, stay_timeout=180, act_interval=0.02):
         self.timeout = timeout
         self.game_window = GameWindow()
         self.window_size = None
         self.action_manager = ActionManager()
         self.action_space = 9
-        self.state_space = 7 + 10 + 3 * 6 + 7 * 4
         self.act_interval = act_interval
 
         self.player: Player | None = None
@@ -109,6 +111,10 @@ class Env:
 
             if time.time() - start_time > self.timeout:
                 raise TimeoutError("Loading timeout")
+
+        # 结算画面没有新的实体检测结果，保留最后一次有效的场景状态。
+        if status_code:
+            return status_code
 
         maze = self.map.get_maze()
 
@@ -296,25 +302,32 @@ class Env:
         return status_code
 
     def state_encode(self):
+        """返回 60 维 float32 观测；成功/失败通过 status_code 单独返回。
+
+        [0:7] 角色，[7] 关卡进度，[8:17] 类型 one-hot，
+        [17:32] 五个敌人，[32:60] 四颗危险弹幕。
+        """
         state = np.zeros(self.state_space, dtype=np.float32)
         state[0] = self.player.xn
         state[1] = self.player.yn
-        state[2] = self.action_manager.get_fire_cool_down()
-        state[3] = self.game_window.hit_point
-        pao, dan, fan = self.game_window.items.values()
-        state[4] = np.array(pao, dtype=np.float32)
-        state[5] = np.array(dan, dtype=np.float32)
-        state[6] = np.array(fan, dtype=np.float32)
+        state[2] = np.clip(self.action_manager.get_fire_cool_down() / 0.6, 0, 1)
+        state[3] = np.clip(self.game_window.hit_point / 4, 0, 1)
+        state[4:7] = [
+            bool(self.game_window.items[name]) for name in ("pao", "dan", "fan")
+        ]
 
-        state[7] = self.map.level
+        state[7] = self.map.level / 4
         task = self.map.get_task()
-        state[8:17] = np.eye(9)[task]
+        if task == -1:
+            pass  # 起始区域没有关卡任务类型，保留全零。
+        elif 0 <= task < 9:
+            state[8 + task] = 1
+        else:
+            raise ValueError(f"Invalid task type: {task}")
 
-        # 统一编码最近的5个敌人，保持状态向量总长度不变。
-        for i, enemy in enumerate(self.enemy_list):
-            assert i < 5, "最多5个敌人"
-            state[17 + i * 3:20 + i * 3] = enemy.state_encode()
-        state[35:63] = self.bullets.state_encode()
+        enemy_end = 17 + self.enemy_list.state_dim
+        state[17:enemy_end] = self.enemy_list.state_encode(self.player)
+        state[enemy_end:] = self.bullets.state_encode()
 
         return state
 

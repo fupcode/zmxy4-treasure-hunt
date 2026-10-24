@@ -123,6 +123,8 @@ class Player:
 
 
 class Enemy:
+    state_dim = 3
+
     def __init__(self, enemy_box, maze):
         xywhn = enemy_box.xywhn
         self.xn = xywhn[0]
@@ -145,8 +147,6 @@ class Enemy:
         self.fired = False
         self.fired_time = None
         self.cool_down_time = None
-
-        self.state_dim = 3
 
         self.distance_array = self.get_distance_array()
         self.vision = self.calculate_vision(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
@@ -232,11 +232,14 @@ class Enemy:
         return False
 
     def state_encode(self):
-        state = np.array([1, self.xn, self.yn])
+        state = np.array([1, self.xn, self.yn], dtype=np.float32)
         return state
 
 
 class EnemyList(UserList[Enemy]):
+    max_enemies = 5
+    state_dim = max_enemies * Enemy.state_dim
+
     def __init__(self, max_disappear_count=1, threshold_distance=20):
         super().__init__()
         self.max_disappear_count = max_disappear_count
@@ -298,23 +301,22 @@ class EnemyList(UserList[Enemy]):
         # 根据与玩家的曼哈顿距离排序
         self.data.sort(key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y))
 
-    def __add__(self, other):
-        # 确保 `other` 是一个可迭代对象，比如列表或另一个 UserList
-        if isinstance(other, (list, UserList)):
-            # 返回一个新的 CustomList 对象，包含合并后的元素
-            return self.data + list(other)
-        raise TypeError(f"Unsupported operand type(s) for +: 'CustomList' and '{type(other).__name__}'")
-
-    def __radd__(self, other):
-        # 实现反向加法，确保列表在左侧时也可以加上 CustomList
-        if isinstance(other, list):
-            return list(other) + self.data
-        raise TypeError(f"Unsupported operand type(s) for +: '{type(other).__name__}' and 'CustomList'")
+    def state_encode(self, player):
+        """编码最近的五个敌人，每个为 [存在标志, x, y]，不足补零。"""
+        state = np.zeros((self.max_enemies, Enemy.state_dim), dtype=np.float32)
+        enemies = sorted(
+            self.data,
+            key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y),
+        )
+        for i, enemy in enumerate(enemies[:self.max_enemies]):
+            state[i] = enemy.state_encode()
+        return state.ravel()
 
 
 class Bullet:
+    state_dim = 7
+
     def __init__(self, bullet_info):
-        self.state_dim = 7
         self.xn, self.yn, self.d = bullet_info
         self.x = int(self.xn * MAZE_WIDTH)
         self.y = int(self.yn * MAZE_HEIGHT)
@@ -322,7 +324,8 @@ class Bullet:
         self.disappear_count = 0
 
     def state_encode(self):
-        state = np.zeros(self.state_dim)
+        """[存在标志, 右, 下, 左, 上, x, y]。"""
+        state = np.zeros(self.state_dim, dtype=np.float32)
         state[0] = 1
         state[1 + self.d] = 1
         state[5] = self.xn
@@ -331,9 +334,11 @@ class Bullet:
 
 
 class Bullets(UserList[Bullet]):
+    max_bullets = 4
+    state_dim = max_bullets * Bullet.state_dim
+
     def __init__(self, disappear_threshold=2):
         super().__init__()
-        self.state_dim = 7 * 4
         self.data = []
         self.safe_bullets = []
         self.new_bullets = []
@@ -406,6 +411,10 @@ class Bullets(UserList[Bullet]):
         # 添加本帧新出现的子弹
         updated_data.extend(new_bullets)
 
+        # 匹配、漏检保留和追加完成后，统一按当前玩家距离排序。
+        updated_data.sort(
+            key=lambda bullet: abs(bullet.x - player.x) + abs(bullet.y - player.y)
+        )
         self.data = updated_data
         self.safe_bullets = safe_bullets
         self.new_bullets = new_bullets
@@ -443,12 +452,11 @@ class Bullets(UserList[Bullet]):
         return False
 
     def state_encode(self):
-        state = np.zeros(self.state_dim)
-        for i, bullet in enumerate(self.data):
-            if i >= 4:
-                break
-            state[i * 7:(i + 1) * 7] = bullet.state_encode()
-        return state
+        """按 update 排好的距离顺序编码前四颗危险弹幕，不足补零。"""
+        state = np.zeros((self.max_bullets, Bullet.state_dim), dtype=np.float32)
+        for i, bullet in enumerate(self.data[:self.max_bullets]):
+            state[i] = bullet.state_encode()
+        return state.ravel()
 
 
 class FallingItem:

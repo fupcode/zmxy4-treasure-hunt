@@ -57,7 +57,6 @@ class GameWindow:
         screen_image = self.capture_screen(outer_window_box)
         screen_image_hls = cv2.cvtColor(screen_image, cv2.COLOR_RGB2HLS)
         self.window_box = self.locate_window(screen_image_hls)
-        window_image = self.crop_image_by_box(screen_image, self.window_box)
 
         if outer_window_box is not None:
             self.window_box[0] += outer_window_box[0]
@@ -68,16 +67,12 @@ class GameWindow:
         height = self.window_box[3] - self.window_box[1]
         self.window_size = (width, height)
 
-        # 获取 health 和 map 信息
-        self.hit_point = self.get_hit_point(window_image)
-        self.map_index = self.get_map(window_image)
-
         print("Window Box:", self.window_box)
         print(f"Window Size: {width} x {height} = {width * height}")
 
-    def reset(self):
+    def get_map_index_at_start(self):
         self.window_image = self.capture_screen(box=self.window_box)
-        self.map_index = self.get_map(self.window_image)
+        self.map_index = self.get_map_index(self.window_image)
 
         return self.map_index
 
@@ -353,7 +348,7 @@ class GameWindow:
 
         return contours
 
-    def get_map(self, window_image):
+    def get_map_index(self, window_image):
         xr0 = 0.90
         yr0 = 0.055
         contours = self.locate_map_contours(window_image)
@@ -493,7 +488,7 @@ if __name__ == "__main__":
 
     env = GameWindow()
     env.init_window()
-    env.reset()
+    env.get_map_index()
     # env.update()
 
     cv2.waitKey(0)

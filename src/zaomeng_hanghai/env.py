@@ -88,13 +88,14 @@ class Env:
         self.move_end = None
 
         self.update()
+        self.render()
 
-        map_index = self.game_window.reset()
+        map_index = self.game_window.get_map_index_at_start()
         self.map.reset(map_index)
-        print("游戏开始！大地图：", map_index)
 
         status = self.try_next_level()
         state = self.state_encode()
+        print("游戏开始！大地图：", map_index)
 
         return state, status
 
@@ -194,9 +195,10 @@ class Env:
         def loop_act(direction):
             self.try_fire()
             self.action_manager.take_action_direction(direction)
+            self.render()
+
             time.sleep(0.1)
             self.update()
-            self.render()
 
         while self.new_level:
             if self.map.get_task() == 5:
@@ -237,9 +239,9 @@ class Env:
         loop_start_time = time.time()
         while self.can_next_level() and not self.new_level:
             direction, path = self.map.get_next_direction(self.player, self.falling_items)
+            self.render(path)
             self.action_manager.take_action_direction(direction)
             time.sleep(0.1)
-            self.render(path)
             status_code = self.update()
 
             if status_code:

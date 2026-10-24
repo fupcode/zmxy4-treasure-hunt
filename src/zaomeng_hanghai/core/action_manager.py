@@ -147,7 +147,7 @@ class ActionManager:
             fire_suspend_direction, fire_temporary_direction = self.get_fire_direction_adjustment(self.fire_direction)
             stop_to(fire_suspend_direction)
             move_to(fire_temporary_direction)
-            time.sleep(0.03)
+            time.sleep(0.035)
             key_down("J")
             self.last_fire_time = time.time()
             time.sleep(0.003)

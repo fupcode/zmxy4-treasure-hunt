@@ -27,20 +27,32 @@ def timeit(func):
 
 class FrameRateCalculator:
     def __init__(self):
-        self.last_time = None  # 上一次触发的时间戳
-        self.fps = 0  # 当前帧率
+        self.reset()
 
-    def trigger(self):
-        current_time = time.time()  # 获取当前时间戳
+    def reset(self):
+        self.last_time = None
+        self.fps = 0.0
+        self.report_start = None
+        self.report_count = 0
+
+    def trigger(self, log_to_terminal=False):
+        """每次有效环境更新计一帧，终端每十秒报告一次平均更新频率。"""
+        current_time = time.perf_counter()
         if self.last_time is not None:
-            # 计算帧率（1 / 时间差）
             time_difference = current_time - self.last_time
             if time_difference > 0:
-                self.fps = int(1 / time_difference)
-
-        # 更新上一次触发时间
+                self.fps = 1 / time_difference
+            self.report_count += 1
+        if self.report_start is None:
+            self.report_start = current_time
+        elapsed = current_time - self.report_start
+        if elapsed >= 10.0:
+            if log_to_terminal:
+                average_fps = self.report_count / elapsed
+                print(f"[FPS] {average_fps:.1f}，平均更新间隔 {elapsed * 1000 / self.report_count:.1f} ms（最近 {elapsed:.1f}s）")
+            self.report_start = current_time
+            self.report_count = 0
         self.last_time = current_time
-
         return self.fps
 
 
@@ -65,7 +77,7 @@ class Env:
         self.move_index = None
         self.move_end = None
 
-        self.fps_calculator = FrameRateCalculator() if render_enabled else None
+        self.fps_calculator = FrameRateCalculator()
         self.map = Map(render_enabled=render_enabled)
         self.stay_timeout = stay_timeout
 
@@ -84,6 +96,7 @@ class Env:
 
     def reset(self):
         self.action_manager.reset()
+        self.fps_calculator.reset()
         self.enemy_list = EnemyList()
         self.bullets = Bullets()
         self.falling_items = FallingItems()
@@ -186,6 +199,7 @@ class Env:
             # 清场后的过关寻路只使用静态地图，无需重建战斗危险区域。
             self.map.debug_image = None
 
+        self.fps_calculator.trigger(log_to_terminal=not self.render_enabled)
         return status_code
 
     def auto_step(self):
@@ -361,7 +375,7 @@ class Env:
                 cv2.line(image, path[i], path[i + 1], (255, 0, 0), 1)
             cv2.circle(image, path[-1], 2, (255, 0, 0), -1)
 
-        fps = self.fps_calculator.trigger()
+        fps = self.fps_calculator.fps
 
         # 在左上角显示 HP
         cv2.putText(image, f"HP: {self.game_window.hit_point}", (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255),
@@ -375,7 +389,7 @@ class Env:
         cv2.putText(image, f"Task: {self.map.get_task()}", (250, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)
         # 在右下角显示帧率
-        cv2.putText(image, f"FPS: {fps}", (250, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(image, f"FPS: {fps:.1f}", (250, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         # 左下角显示拥有物品
         for i, value in enumerate(self.game_window.items.values()):
             if value:

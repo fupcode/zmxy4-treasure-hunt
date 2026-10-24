@@ -189,9 +189,12 @@ class Env:
         self.try_fire()
         self.render()
         status_code = self.update()
-        state = self.state_encode()
+        if status_code:
+            return status_code
 
-        return state, status_code
+        status_code = self.try_next_level()
+        self.new_level = False
+        return status_code
 
     def try_fire(self):
         if len(self.enemy_list) == 0:
@@ -375,7 +378,24 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env: Env, target=3):
+def manual_loop(env: Env, target=100):
+    # 传入已经初始化好窗口的Env实例
+    success_count = 0
+
+    print("Start Loop")
+    while success_count < target:
+        print(f"Success {success_count}/{target}")
+
+        state, status_code = env.reset()
+        while status_code == 0:
+            status_code = env.step(None)
+            if status_code == 1:
+                success_count += 1
+        time.sleep(1)
+        env.game_window.recover(status_code)
+
+
+def auto_loop(env: Env, target=100):
     # 传入已经初始化好窗口的Env实例
     success_count = 0
 
@@ -407,4 +427,4 @@ if __name__ == "__main__":
 
     env_ = Env()
     env_.init_window()
-    auto_loop(env_, target_)
+    manual_loop(env_, target_)

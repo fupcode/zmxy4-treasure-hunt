@@ -5,7 +5,8 @@ import time
 import win32api
 import win32con
 
-from .direction import Direction, direction_list
+from .direction import (Direction, direction_list, is_reverse_direction, is_single_direction,
+                        is_vertical_direction, is_horizontal_direction, get_horizontal_and_vertical_direction)
 
 
 def key_down(string):
@@ -66,9 +67,6 @@ class ActionManager:
     def get_fire_cool_down(self):
         return max(0.0, self.last_fire_time + self.fire_interval - time.time())
 
-    def get_no_fire_time(self):
-        return time.time() - self.last_fire_time + self.fire_interval
-
     def update_pao(self, pao):
         if self.pao == pao:
             return
@@ -79,49 +77,44 @@ class ActionManager:
         else:
             self.fire_interval = 0.6
 
-    def get_fire_direction_adjustment(self, single_direction):
-        if len(single_direction.value) != 1:
-            raise ValueError("Invalid direction value.")
+    def get_fire_direction_adjustment(self, fire_direction):
+        if len(fire_direction.value) != 1:
+            raise ValueError("Invalid fire direction.")
         if self.last_direction is None:
-            return None, single_direction
+            return None, fire_direction
 
-        if self.last_direction == Direction.DownRight:
-            if single_direction == Direction.Right:
+        # 处理单方向移动时
+        if is_single_direction(self.last_direction):
+            if fire_direction == self.last_direction:
                 return None, None
-            return Direction.Right, single_direction
-        elif self.last_direction == Direction.DownLeft:
-            if single_direction == Direction.Left:
-                return None, None
-            return Direction.Left, single_direction
-        elif self.last_direction == Direction.UpRight:
-            if single_direction == Direction.Right:
-                return None, None
-            return Direction.Right, single_direction
-        elif self.last_direction == Direction.UpLeft:
-            if single_direction == Direction.Left:
-                return None, None
-            return Direction.Left, single_direction
-        elif self.last_direction == Direction.Right or self.last_direction == Direction.Left:
-            if single_direction == Direction.Down or single_direction == Direction.Up:
-                return self.last_direction, single_direction
-            elif self.last_direction == single_direction:
-                return None, None
+            elif is_reverse_direction(self.last_direction, fire_direction):
+                return None, fire_direction
+            elif is_horizontal_direction(fire_direction):
+                return None, fire_direction
             else:
-                return None, single_direction
-        elif self.last_direction == Direction.Down or self.last_direction == Direction.Up:
-            return None, single_direction
+                return self.last_direction, fire_direction
 
-        return None, None
+        # 处理双方向移动时
+        if is_horizontal_direction(fire_direction):
+            _, move_vertical = get_horizontal_and_vertical_direction(self.last_direction)
+            if fire_direction == move_vertical:
+                return None, None
+            return None, fire_direction
+        else:
+            move_horizontal, move_vertical = get_horizontal_and_vertical_direction(self.last_direction)
+            if fire_direction == move_vertical:
+                return move_horizontal, None
+            return move_horizontal, fire_direction
 
     def fire_to(self, direction):
         if self._can_fire():
-            suspend_direction, move_direction = self.get_fire_direction_adjustment(direction)
+            suspend_direction, temporary_direction = self.get_fire_direction_adjustment(direction)
             stop_to(suspend_direction)
-            move_to(move_direction)
+            move_to(temporary_direction)
             time.sleep(0.002)
             key_down("J")
             key_up("J")
-            stop_to(move_direction)
+            stop_to(temporary_direction)
             move_to(suspend_direction)
             return 1
         return 0
@@ -132,7 +125,7 @@ class ActionManager:
         if direction == self.last_direction:  # 完全符合
             return None, None
         # 处理部分冲突
-        if len(self.last_direction.value) == 2:
+        if not is_single_direction(self.last_direction):  # 双双部分冲突
             if len(direction.value) == 2:  # 双双部分冲突
                 if self.last_direction == Direction.DownRight:
                     if direction == Direction.DownLeft:

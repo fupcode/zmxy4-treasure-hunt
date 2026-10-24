@@ -5,8 +5,8 @@ import time
 import win32api
 import win32con
 
-from .direction import (Direction, direction_list, is_reverse_direction, is_single_direction,
-                        is_vertical_direction, is_horizontal_direction, get_horizontal_and_vertical_direction)
+from .direction import (direction_list, is_reverse_direction, is_single_direction,
+                        is_horizontal_direction, get_horizontal_and_vertical_direction)
 
 
 TICK = 0.035

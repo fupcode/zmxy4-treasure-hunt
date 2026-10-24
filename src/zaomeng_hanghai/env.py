@@ -155,62 +155,8 @@ class Env:
 
         return status_code
 
-    def step(self, action):
-        reward = 0
-
-        hit_point = self.game_window.hit_point
-        level = self.map.level
-        self.action_manager.take_action(action)
-
-        start_time = time.time()
-        self.render()
-
-        fire_reward = self.fire()
-        reward += fire_reward
-        if self.map.is_move_collision(self.player, action):
-            reward -= 0.4
-
-        self.move_to_enemy_and_update()
-        delay_time = self.act_interval - (time.time() - start_time)
-        if delay_time > 0:
-            time.sleep(delay_time)
-        status_code = self.update()
-
-        if self.game_window.hit_point < hit_point:
-            reward -= 0.8
-        if self.player.in_forbidden_area():
-            reward -= 0.4
-        for enemy in self.enemy_list:
-            if enemy.x1 < self.player.x < enemy.x2 and enemy.y1 < self.player.y < enemy.y2:
-                reward -= 0.4
-
-        if status_code:
-            if status_code == 1:
-                reward += 1
-            elif status_code == -2:
-                reward -= 1
-            state = self.state_encode()
-            return state, reward, status_code
-        elif self.map.is_stay_time_out():
-            status_code = -3  # 超时
-            state = self.state_encode()
-            reward -= 1
-            return state, reward, status_code
-
-        status_code = self.try_next_level()
-        if status_code == 1:
-            reward += 1
-        elif status_code == -2:
-            reward -= 1
-        if level != self.map.level:
-            reward += 0.8
-
-        state = self.state_encode()
-
-        return state, reward, status_code
-
     def auto_step(self):
-        self.fire()
+        self.try_fire()
         status_code = self.move_to_enemy_and_update()
 
         if status_code:
@@ -220,25 +166,6 @@ class Env:
         status_code = self.try_next_level()
 
         return status_code
-
-    def _step(self, action):
-        if action == 0:
-            return
-        keys = ["D", "S", "A", "W"]
-        if action < 4:
-            key_down(keys[action - 1])
-        elif action == 5:
-            key_down("D")
-            key_down("S")
-        elif action == 6:
-            key_down("S")
-            key_down("A")
-        elif action == 7:
-            key_down("A")
-            key_down("W")
-        elif action == 8:
-            key_down("W")
-            key_down("D")
 
     def state_encode(self):
         state = np.zeros(self.state_space, dtype=np.float32)
@@ -272,7 +199,7 @@ class Env:
 
         return state
 
-    def fire(self):
+    def try_fire(self):
         if len(self.enemy_list) == 0:
             return -0.1
 
@@ -284,7 +211,7 @@ class Env:
 
     def try_start_level(self):
         def loop_act(direction):
-            self.fire()
+            self.try_fire()
             self.action_manager.take_action_direction(direction)
             time.sleep(0.1)
             self.update()
@@ -430,7 +357,7 @@ if __name__ == "__main__":
 
     try:
         epochs = 100
-        env = Env(time_out=3)
+        env = Env()
         env.init_window()
 
         print("Start Loop")

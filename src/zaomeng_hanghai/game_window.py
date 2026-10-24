@@ -6,7 +6,7 @@ import dxcam
 import win32api
 import win32con
 
-from zaomeng_hanghai.core.onnx_model import OnnxModel
+from zaomeng_hanghai.core.onnx_model import OnnxModel, DetectionResult
 
 
 # 耗时记录装饰器
@@ -19,6 +19,10 @@ def timeit(func):
         return result
 
     return wrapper
+
+
+def set_cursor_pos(x, y):
+    win32api.SetCursorPos((x, y))
 
 
 def click(x, y):
@@ -108,32 +112,39 @@ class GameWindow:
 
         return 0
 
-    def recover(self, status, end=False):
-        if status == -2:
-            print("Failed.")
-            x = int(self.window_box[0] + self.window_size[0] * 0.4)
-            y = int(self.window_box[1] + self.window_size[1] * 0.712)
-            click(x, y)
-            time.sleep(3)
-        elif status == -3:
-            print("Stay Time Out.")
-            self.click_to_home_retry(0.8, 0.08)
+    def set_cursor_pos_normal(self, xn, yn):
+        x = int(self.window_box[0] + self.window_size[0] * xn)
+        y = int(self.window_box[1] + self.window_size[1] * yn)
+        set_cursor_pos(x, y)
 
-        elif status == 1:
-            print("Successful.")
-            self.click_to_home_retry(0.784, 0.765, end=end)
-
-    def click_to_home_retry(self, xn, yn, end=False):
+    def click_normal(self, xn, yn):
         x = int(self.window_box[0] + self.window_size[0] * xn)
         y = int(self.window_box[1] + self.window_size[1] * yn)
         click(x, y)
 
-        time.sleep(1)
+    def recover(self, status, end=False):
+        if status == -2:
+            print("Failed.")
+            self.click_normal(0.4, 0.712)
+            time.sleep(3)
+        elif status == -3:
+            print("Stay Time Out.")
+            self.click_normal(0.8, 0.08)
+            time.sleep(3)
+            self.start_hanghai()
+
+        elif status == 1:
+            print("Successful.")
+            self.click_normal(0.784, 0.765)
+            time.sleep(3)
+            self.start_hanghai(end=end)
+
+    def start_hanghai(self, end=False):
         max_confidence = 0
-        icon_box = None
-        for i in range(30):
+        icon_box: DetectionResult | None = None
+        for i in range(10):
+            self.set_cursor_pos_normal(0.75, 0.072)
             image = self.capture_screen(self.window_box)
-            assert image is not None
             det = self.model(image)
             icon_boxes = det['player']
 
@@ -145,25 +156,18 @@ class GameWindow:
             if icon_box is not None:
                 break
 
-            time.sleep(0.5)
+            time.sleep(1)
 
         if icon_box is None:
             raise TimeoutError("Can't find the icon.")
 
-        height, width = image.shape[:2]
-        x = self.window_box[0] + int(icon_box.xywhn[0] * width)
-        y = self.window_box[1] + int(icon_box.xywhn[1] * height)
-        click(x, y)
+        self.click_normal(icon_box.xywhn[0], icon_box.xywhn[1])
 
-        time.sleep(1)
-
-        x = int(self.window_box[0] + self.window_size[0] * 0.352)
-        y = int(self.window_box[1] + self.window_size[1] * 0.706)
-
-        click(x, y)
+        time.sleep(0.5)
+        self.click_normal(0.352, 0.706)
         if not end:
             time.sleep(0.2)
-            click(x, y)
+            self.click_normal(0.352, 0.706)
 
         time.sleep(3)
 
@@ -292,12 +296,13 @@ class GameWindow:
         self.items["fan"] = np.mean(fan_mask) < 100
 
     def capture_screen(self, box=None):
-        if box is None:
-            image = self.camera.grab(new_frame_only=False)
-        else:
-            image = self.camera.grab(region=box, new_frame_only=False)
-        assert image is not None
-        return image
+        while True:
+            image = self.camera.grab(region=box)
+
+            if image is not None:
+                return image
+
+            time.sleep(0.001)
 
     def locate_window(self, hls_image):
         # 二值化

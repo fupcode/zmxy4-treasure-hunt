@@ -7,6 +7,7 @@ import win32api
 import win32con
 
 from zaomeng_hanghai.core.onnx_model import OnnxModel, DetectionResult
+from zaomeng_hanghai.core.action_manager import key_up, key_up_all
 
 
 # 耗时记录装饰器
@@ -118,6 +119,9 @@ class GameWindow:
         click(x, y)
 
     def recover(self, status, end=False):
+        time.sleep(3)
+        key_up("J")
+        key_up_all()
         if status == -2:
             print("Failed.")
             self.click_normal(0.4, 0.712)

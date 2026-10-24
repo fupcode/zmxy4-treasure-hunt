@@ -495,7 +495,7 @@ class Map:
             if enemy is not None:
                 enemy.prepare_navigation(origin_maze)
         moveable_maze = np.logical_or(origin_maze, self.map_template_without_exit)
-        obstacle_distance_maze = self.get_distance_maze()
+        obstacle_distance_maze = self.get_distance_maze().copy()
         end_region = np.ones((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
 
         hit_height = HIT_HEIGHT

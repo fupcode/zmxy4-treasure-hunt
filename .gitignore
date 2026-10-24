@@ -90,6 +90,7 @@ version.json
 *.pt
 
 images/
+/data/expert/
 /yolo/*
 !/yolo/README.md
 !/yolo/*.py

@@ -34,6 +34,28 @@ class FireAlignmentTests(unittest.TestCase):
         )
         return self.game_map.flee_mazes
 
+    def test_observation_flags_separate_range_and_can_hit(self):
+        enemy = self.enemy()
+        player = SimpleNamespace(x=160, y=105 - FIRE_Y_RANGE)
+        self.assertEqual(self.game_map.enemy_fire_flags(player, enemy), (True, True))
+        self.maze[player.y + 1, player.x] = True
+        self.assertEqual(self.game_map.enemy_fire_flags(player, enemy), (True, False))
+        player.y -= 1
+        self.assertEqual(self.game_map.enemy_fire_flags(player, enemy), (False, False))
+        player.x = 30
+        self.assertEqual(self.game_map.enemy_fire_flags(player, enemy), (False, False))
+
+    def test_observation_flags_agree_with_fire_distance(self):
+        enemy = self.enemy()
+        self.maze[75:90, 155:165] = True
+        for x in range(0, MAZE_WIDTH, 3):
+            for y in range(0, MAZE_HEIGHT, 3):
+                player = SimpleNamespace(x=x, y=y)
+                in_range, can_hit = self.game_map.enemy_fire_flags(player, enemy)
+                self.assertFalse(can_hit and not in_range)
+                self.assertEqual(can_hit,
+                                 self.game_map.fire_distance(player, enemy)[0] is not None)
+
     def test_lower_alignment_edges_cannot_be_targets_or_stop_positions(self):
         enemy = self.enemy()
         for x, y in ((150, 40), (80, 100)):

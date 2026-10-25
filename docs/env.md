@@ -30,7 +30,7 @@ env = Env(timeout=5, stay_timeout=30, combat_timeout=120)
 
 ## 智能体奖励
 
-当前状态为 [v2 的 86 维编码](state-encoding.md)：敌人与子弹使用相对玩家坐标，
+当前状态为 [v4 的 96 维编码](state-encoding.md)：敌人与子弹使用相对玩家坐标，
 包含敌人实际碰撞框、3 个弹幕槽位和 8 个方向的静态碰撞标志。
 
 `Env.step(action)` 继续返回状态码，并把本次奖励写入 `env.last_reward`，

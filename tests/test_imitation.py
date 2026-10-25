@@ -122,6 +122,15 @@ class ImitationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Incompatible observation schema"):
             load_episodes(self.data)
 
+    def test_v3_same_dimension_but_different_flag_semantics_is_rejected(self):
+        self.add_episode(1)
+        config_path = self.data / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config.update(schema_version=3, observation_schema_version=3)
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Incompatible observation schema"):
+            load_episodes(self.data)
+
 
 if __name__ == "__main__":
     unittest.main()

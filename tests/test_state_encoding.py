@@ -22,15 +22,16 @@ class StateEncodingTests(unittest.TestCase):
         env.game_window = SimpleNamespace(
             hit_point=2, items={"fan": True, "dan": False, "pao": True}
         )
-        env.map = SimpleNamespace(level=level, get_task=lambda: task, is_move_collision=Mock(return_value=False))
+        env.map = SimpleNamespace(level=level, get_task=lambda: task, is_move_collision=Mock(return_value=False),
+                                  enemy_fire_flags=Mock(return_value=(False, False)))
         env.enemy_list = EnemyList()
         env.bullets = Bullets()
         return env
 
     def test_start_area_normalization_and_empty_slots(self):
         state = self.make_env().state_encode()
-        self.assertEqual(state.shape, (86,))
-        self.assertEqual(OBSERVATION_DIM, 86)
+        self.assertEqual(state.shape, (96,))
+        self.assertEqual(OBSERVATION_DIM, 96)
         self.assertEqual(state.dtype, np.float32)
         np.testing.assert_allclose(state[:8], [0.25, 0.75, 0.5, 0.5, 1, 0, 1, 0])
         np.testing.assert_array_equal(state[8:], 0)
@@ -60,7 +61,7 @@ class StateEncodingTests(unittest.TestCase):
         original_enemies = list(env.enemy_list)
         original_bullets = list(env.bullets)
         state = env.state_encode()
-        enemies = state[ENEMY_SLICE].reshape(5, 8)
+        enemies = state[ENEMY_SLICE].reshape(5, 10)
         bullets = state[BULLET_SLICE].reshape(3, 7)
         np.testing.assert_allclose(enemies[:, 1], [0.1, 0.2, 0.3, 0.4, 0.5])
         np.testing.assert_allclose(bullets[:, 5], [0.1, 0.2, 0.3])
@@ -93,9 +94,9 @@ class StateEncodingTests(unittest.TestCase):
         env.bullets.append(Bullet((0, 0, 0)))
         state = env.state_encode()
         np.testing.assert_array_equal(state[17:25], [1, -0.25, -0.75, -0.25, -0.75, -0.25, -0.75, 0])
-        np.testing.assert_array_equal(state[25:57], 0)
-        np.testing.assert_array_equal(state[57:64], [1, 1, 0, 0, 0, -0.25, -0.75])
-        np.testing.assert_array_equal(state[64:], 0)
+        np.testing.assert_array_equal(state[25:67], 0)
+        np.testing.assert_array_equal(state[67:74], [1, 1, 0, 0, 0, -0.25, -0.75])
+        np.testing.assert_array_equal(state[74:], 0)
 
     def test_actual_enemy_box_is_relative_to_player(self):
         env = self.make_env()
@@ -108,6 +109,16 @@ class StateEncodingTests(unittest.TestCase):
             enemy.x2 / 320 - 0.25, enemy.y2 / 200 - 0.75,
         ])
         self.assertLess(state[21], 0)
+
+    def test_enemy_fire_flags_are_encoded_and_empty_slots_stay_zero(self):
+        env = self.make_env()
+        enemy = Enemy(DetectionResult(1, [0.3, 0.4, 0.5, 0.6]), np.zeros((200, 320), dtype=bool))
+        env.enemy_list.append(enemy)
+        env.map.enemy_fire_flags.return_value = (True, False)
+        enemies = env.state_encode()[ENEMY_SLICE].reshape(5, 10)
+        np.testing.assert_array_equal(enemies[0, 8:], [1, 0])
+        np.testing.assert_array_equal(enemies[1:], 0)
+        env.map.enemy_fire_flags.assert_called_once_with(env.player, enemy)
 
     def test_collision_flags_have_exact_action_order_without_side_checks(self):
         env = self.make_env(level=1, task=0)
@@ -136,7 +147,7 @@ class StateEncodingTests(unittest.TestCase):
         env.enemy_list.append(Enemy(DetectionResult(1, [0.425, 0.525, 0.625, 0.725]), maze))
         env.bullets.clear()
         env.bullets.append(Bullet((0.525, 0.725, 0)))
-        np.testing.assert_allclose(env.state_encode()[17:78], before[17:78], atol=1e-7)
+        np.testing.assert_allclose(env.state_encode()[17:88], before[17:88], atol=1e-7)
 
     def test_terminal_update_skips_scene_processing(self):
         for status in (1, -2):

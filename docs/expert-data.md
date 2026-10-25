@@ -70,9 +70,9 @@ print(env.expert_data_path)
 读取时只使用 `manifest.jsonl` 中 `kept=true` 的文件；忽略临时文件和未被清单引用的文件。
 进程被强制终止时，当前局可能只有进度记录，没有清单条目。
 
-`config.json` 声明 `schema_version=2`、`observation_schema_version=2`、
-`observation_dim=86`、动作顺序、阶段映射、战斗时限和过滤规则。
-当前观测布局详见 [状态编码 v2](state-encoding.md)。旧 60/81 维数据不兼容，
+`config.json` 声明 `schema_version=4`、`observation_schema_version=4`、
+`observation_dim=96`、动作顺序、阶段映射、战斗时限和过滤规则。
+当前观测布局详见 [状态编码 v4](state-encoding.md)。旧 60/81 维数据不兼容，
 不能通过修改元数据转换；建议为新数据使用单独的训练根目录，避免混入旧目录。
 
 ## NPZ 字段
@@ -81,7 +81,7 @@ print(env.expert_data_path)
 
 | 字段 | shape | dtype | 含义 |
 | --- | --- | --- | --- |
-| `obs` | `(N, 86)` | `float32` | 动作执行前的观测快照 |
+| `obs` | `(N, 96)` | `float32` | 动作执行前的观测快照 |
 | `acts` | `(N,)` | `int64` | 目标移动动作，范围 0..8 |
 | `phases` | `(N,)` | `int8` | 0=start，1=combat |
 | `levels` | `(N,)` | `int8` | 关卡编号，1..4 |
@@ -148,10 +148,10 @@ from zaomeng_hanghai.train.expert_data import load_episodes, concatenate
 
 episodes = load_episodes("data/expert/实际运行目录")
 obs, acts = concatenate(episodes)
-print(obs.shape, acts.shape)  # (总样本数, 86), (总样本数,)
+print(obs.shape, acts.shape)  # (总样本数, 96), (总样本数,)
 ```
 
-加载器会校验 v2 配置、有限观测值、动作范围及清单样本数，并跳过被过滤的局。
+加载器会校验 v4 配置、有限观测值、动作范围及清单样本数，并跳过被过滤的局。
 训练集和验证集按整局划分，避免相邻帧泄漏：
 
 ```powershell

@@ -62,7 +62,7 @@ class FrameRateCalculator:
 
 
 class Env:
-    # 角色/关卡 17 + 五个敌人 40 + 三颗子弹 21 + 碰撞方向 8。
+    # 角色/关卡 17 + 五个敌人 50 + 三颗子弹 21 + 碰撞方向 8。
     state_space = OBSERVATION_DIM
     state_schema_version = OBSERVATION_SCHEMA_VERSION
 
@@ -546,11 +546,11 @@ class Env:
         return status_code
 
     def state_encode(self):
-        """返回 v2 的 86 维 float32 观测；终局状态码单独返回。
+        """返回 v4 的 96 维 float32 观测；终局状态码单独返回。
 
         [0:7] 角色，[7] 关卡进度，[8:17] 类型 one-hot，
-        [17:57] 五个敌人的相对位置/碰撞框/冷却，[57:78] 三颗危险弹幕，
-        [78:86] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
+        [17:67] 五个敌人的相对位置/碰撞框/冷却/射程/可命中，[67:88] 三颗危险弹幕，
+        [88:96] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
         """
         state = np.zeros(self.state_space, dtype=np.float32)
         state[0] = self.player.xn
@@ -570,7 +570,7 @@ class Env:
         else:
             raise ValueError(f"Invalid task type: {task}")
 
-        state[ENEMY_SLICE] = self.enemy_list.state_encode(self.player)
+        state[ENEMY_SLICE] = self.enemy_list.state_encode(self.player, self.map)
         state[BULLET_SLICE] = self.bullets.state_encode(self.player)
         state[COLLISION_SLICE] = [self.map.is_move_collision(self.player, action) for action in range(1, 9)]
 

@@ -356,6 +356,31 @@ class Map:
                 return enemy.x - player.x, 1
         return None, None
 
+    def enemy_fire_flags(self, player, enemy):
+        """返回（对齐且在射程内，当前可以命中）；未对齐时均为 False。
+
+        方向优先级、中心射程、包含两端的遮挡检查与 fire_distance 一致。
+        可以命中要求在射程内且无遮挡。
+        使用与专家开火相同的膨胀地图。
+        """
+        maze = self.get_maze()
+        height, width = maze.shape
+        if not (0 <= player.x < width and 0 <= player.y < height):
+            return False, False
+        if enemy.x1 < player.x < enemy.x2:
+            center, position, limit = enemy.y, player.y, FIRE_Y_RANGE
+            line = maze[:, player.x]
+        elif enemy.y1 < player.y < enemy.y2:
+            center, position, limit = enemy.x, player.x, FIRE_X_RANGE
+            line = maze[player.y, :]
+        else:
+            return False, False
+        if not 0 <= center < len(line):
+            return False, False
+        blocked = bool(np.any(line[min(position, center):max(position, center) + 1]))
+        in_range = abs(position - center) <= limit
+        return in_range, in_range and not blocked
+
     def fire_direction(self, player, enemy_list):
         min_distance = MAZE_HEIGHT + MAZE_WIDTH
         direction = None

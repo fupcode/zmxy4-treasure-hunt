@@ -1,8 +1,8 @@
-# 状态编码 v2：86 维
+# 状态编码 v4：96 维
 
-`Env.state_encode()` 返回 `(86,)` 的 `float32` 数组。
+`Env.state_encode()` 返回 `(96,)` 的 `float32` 数组。
 环境、BC、PPO 和推理共用 `core/observation.py` 的字段定义；
-`Env.state_schema_version=2`。状态码仍单独返回，不混入状态向量。
+`Env.state_schema_version=4`。状态码仍单独返回，不混入状态向量。
 
 ## 布局
 
@@ -16,14 +16,14 @@
 | `4:7` | 3 | `pao, dan, fan` 拥有标志 |
 | `7` | 1 | 关卡编号 / 4 |
 | `8:17` | 9 | 地图类型 one-hot；起始区域全零 |
-| `17:57` | 40 | 最近 5 个敌人，每个 8 维 |
-| `57:78` | 21 | 最近 3 颗危险弹幕，每颗 7 维 |
-| `78:86` | 8 | 8 个移动方向是否碰撞，`1=会撞，0=可走` |
+| `17:67` | 50 | 最近 5 个敌人，每个 10 维 |
+| `67:88` | 21 | 最近 3 颗危险弹幕，每颗 7 维 |
+| `88:96` | 8 | 8 个移动方向是否碰撞，`1=会撞，0=可走` |
 
 每个敌人的字段：
 
 ```text
-[present, dx, dy, box_left_dx, box_top_dy, box_right_dx, box_bottom_dy, fire_cooldown]
+[present, dx, dy, box_left_dx, box_top_dy, box_right_dx, box_bottom_dy, fire_cooldown, in_fire_range, can_hit]
 ```
 
 计算方式：
@@ -95,23 +95,29 @@ fire_cooldown = clip(enemy.fire_cool_down / 3.0, 0, 1)
 
 ```json
 {
-  "schema_version": 2,
-  "observation_schema_version": 2,
-  "observation_dim": 86,
+  "schema_version": 4,
+  "observation_schema_version": 4,
+  "observation_dim": 96,
   "actions": ["stop", "Right", "Down", "Left", "Up", "DownRight", "DownLeft", "UpRight", "UpLeft"]
 }
 ```
 
-NPZ 的 `obs` 为 `(N,86)`；清单、动作和其他采集字段保持原有含义。
-BC/PPO checkpoint 保存 `observation_schema_version=2` 和输入维度。
+NPZ 的 `obs` 为 `(N,96)`；清单、动作和其他采集字段保持原有含义。
+BC/PPO checkpoint 保存 `observation_schema_version=4` 和输入维度。
 加载器同时校验版本和维度，避免相同维度但不同字段语义的存档被误读。
 
-此前的 v2 尚未训练，本次保留版本号 2，维度由 81 扩为 86。
-旧 60/81 维专家数据与 checkpoint 会因维度不符被明确拒绝，不改写原始文件。
-旧数据可推导部分相对坐标，但没有保留敌人边界框，不能可靠补出全部新版特征。
-不能仅改 config 的维度/版本，也不能给缺失边界框随意补零后宣称转换完成。
-应重新采集 v2 数据再做 BC，或直接从随机初始化开始 PPO；旧 PPO 存档无法直接续训。
-默认新模型变为 `86 → 256 → 256 → 256 → 9/1`。
+v4 每个敌人新增两个标志：
+
+- `in_fire_range`：按 `Map.fire_distance()` 的方向优先级与敌人碰撞框对齐，且到敌人中心的轴向距离在射程内。
+- `can_hit`：已对齐且在射程内，并且从玩家格到敌人中心投影格的射线上没有障碍物，检查包含两端。
+
+未对齐或空槽位时两项均为 0。地图使用专家开火判定所用的膨胀地图。
+`can_hit=1` 表示当前可射中；`in_fire_range=1, can_hit=0` 表示射程内但有遮挡。
+v2 的 86 维专家数据可使用地图编号、关卡、角色绝对坐标和敌人相对坐标/整数边界框重建这两个标志；
+已用仓库外脚本迁移并合并 `data/expert`，清单保留原始来源，旧目录在仓库外备份。
+旧数据坐标为 float32，重建无法恢复被量化前的亚像素精度。
+v3 与 v4 均为 96 维，但末项语义不同，因此升级版本号；旧 checkpoint 需要重新训练，不能直接续训。
+默认新模型为 `96 → 256 → 256 → 256 → 9/1`。
 
 ## 后续建议
 

@@ -1,4 +1,4 @@
-"""自动专家运行的 v2 行为克隆样本；不依赖游戏或训练框架。"""
+"""自动专家运行的行为克隆样本；不依赖游戏或训练框架。"""
 
 from datetime import datetime
 import json
@@ -9,7 +9,7 @@ from uuid import uuid4
 import numpy as np
 
 from .direction import direction_list
-from .observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
+from .observation import ENEMY_FIELDS, OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
 
 
 class ExpertRecorder:
@@ -26,6 +26,7 @@ class ExpertRecorder:
             "schema_version": OBSERVATION_SCHEMA_VERSION,
             "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
             "observation_dim": OBSERVATION_DIM,
+            "enemy_fields": list(ENEMY_FIELDS),
             "actions": ["stop"] + [direction.name for direction in direction_list],
             "phases": {"start": 0, "combat": 1},
             "combat_timeout": combat_timeout,

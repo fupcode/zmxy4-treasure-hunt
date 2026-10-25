@@ -263,13 +263,15 @@ class Enemy:
     def is_safe(self):
         return self.fire_cool_down > 0
 
-    def state_encode(self, player):
+    def state_encode(self, player, game_map=None):
         """位置和实际整数碰撞框相对玩家的归一化偏移。"""
+        in_range, can_hit = (False, False) if game_map is None else game_map.enemy_fire_flags(player, self)
         return np.array([
             1, self.xn - player.xn, self.yn - player.yn,
             self.x1 / MAZE_WIDTH - player.xn, self.y1 / MAZE_HEIGHT - player.yn,
             self.x2 / MAZE_WIDTH - player.xn, self.y2 / MAZE_HEIGHT - player.yn,
             np.clip(self.fire_cool_down / ENEMY_FIRE_COOLDOWN_SCALE, 0, 1),
+            in_range, can_hit,
         ], dtype=np.float32)
 
 
@@ -343,15 +345,15 @@ class EnemyList(UserList[Enemy]):
         # 根据与玩家的曼哈顿距离排序
         self.data.sort(key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y))
 
-    def state_encode(self, player):
-        """最近五个敌人，每个 8 维相对坐标/碰撞框/冷却；不足补零。"""
+    def state_encode(self, player, game_map=None):
+        """最近五个敌人，每个 10 维位置/碰撞框/冷却/射击标志；不足补零。"""
         state = np.zeros((self.max_enemies, Enemy.state_dim), dtype=np.float32)
         enemies = sorted(
             self.data,
             key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y),
         )
         for i, enemy in enumerate(enemies[:self.max_enemies]):
-            state[i] = enemy.state_encode(player)
+            state[i] = enemy.state_encode(player, game_map)
         return state.ravel()
 
 

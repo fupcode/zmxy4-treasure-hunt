@@ -88,10 +88,10 @@ class RewardTests(unittest.TestCase):
         env.new_level = False
         return env
 
-    def test_existing_fire_rewards_unchanged(self):
+    def test_fire_reward_and_neutral_cooldown(self):
         for ready, direction, expected in (
             (True, Direction.Right, 1), (True, None, -0.05),
-            (False, Direction.Right, -0.1), (False, None, 0.02),
+            (False, Direction.Right, 0), (False, None, 0),
         ):
             manager = ActionManager()
             manager.fire_direction = direction
@@ -107,15 +107,15 @@ class RewardTests(unittest.TestCase):
             manager.reset()
             self.assertEqual(manager.fire_reward, 0)
 
-    def test_stationary_is_small_and_cooldown_cannot_pay_for_waiting(self):
-        env = self.make_env(fire_reward=0.02)
+    def test_stationary_and_cooldown_are_neutral(self):
+        env = self.make_env(fire_reward=0)
         self.assertEqual(env.step(0), 0)
-        self.assertAlmostEqual(env.reward_terms["stationary"], -0.005)
-        self.assertLess(env.last_reward, 0)
+        self.assertAlmostEqual(env.reward_terms["stationary"], 0)
+        self.assertEqual(env.last_reward, 0)
         self.assertEqual(env.reward_terms["wall_collision"], 0)
-        # 选移动但实际没走，也要算静止。
+        # 选移动但实际没走，默认也不惩罚静止。
         env.step(1)
-        self.assertEqual(env.reward_terms["stationary"], -0.005)
+        self.assertEqual(env.reward_terms["stationary"], 0)
 
     def test_free_movement_and_wall_collision(self):
         env = self.make_env(fire_reward=1)
@@ -127,14 +127,14 @@ class RewardTests(unittest.TestCase):
 
         env.update.side_effect = move
         env.step(1)
-        self.assertAlmostEqual(env.last_reward, 0.98)
+        self.assertAlmostEqual(env.last_reward, 1)
         self.assertEqual(env.reward_terms["stationary"], 0)
         env.map.get_maze()[100, env.player.x + 1] = True
         env.update.side_effect = None
         env.step(1)
-        self.assertEqual(env.reward_terms["wall_collision"], -0.2)
+        self.assertEqual(env.reward_terms["wall_collision"], -0.1)
         self.assertEqual(env.reward_terms["stationary"], 0)
-        self.assertAlmostEqual(env.last_reward, 0.78)
+        self.assertAlmostEqual(env.last_reward, 0.9)
 
     def test_navigation_cannot_overwrite_agent_fire_or_movement(self):
         env = self.make_env(fire_reward=1)
@@ -148,29 +148,30 @@ class RewardTests(unittest.TestCase):
         env.try_next_level.side_effect = navigate
         env.step(0)
         self.assertEqual(env.reward_terms["fire"], 1)
-        self.assertEqual(env.reward_terms["stationary"], -0.005)
-        self.assertEqual(env.reward_terms["next_level"], 5)
-        self.assertAlmostEqual(env.last_reward, 5.975)
+        self.assertEqual(env.reward_terms["stationary"], 0)
+        self.assertEqual(env.reward_terms["next_level"], 20)
+        self.assertEqual(env.reward_terms["level_speed"], 10)
+        self.assertAlmostEqual(env.last_reward, 31)
 
     def test_damage_and_terminal_screenshot(self):
         env = self.make_env()
         env.update.side_effect = lambda: (setattr(env.game_window, "hit_point", 3) or 0)
         env.step(0)
-        self.assertEqual(env.reward_terms["damage"], -5)
+        self.assertEqual(env.reward_terms["damage"], -10)
         # 终局没有可信的 HP 图像，不能因读到 0 再额外扣剩余血量。
         env.update.side_effect = lambda: (setattr(env.game_window, "hit_point", 0) or -2)
         _, reward, terminated, truncated, info = env.step_with_reward(0)
         self.assertTrue(terminated)
         self.assertFalse(truncated)
         self.assertEqual(info["reward_terms"]["damage"], 0)
-        self.assertEqual(info["reward_terms"]["death"], -20)
-        self.assertAlmostEqual(reward, -20.02)
+        self.assertEqual(info["reward_terms"]["death"], -40)
+        self.assertAlmostEqual(reward, -40)
         with self.assertRaises(RuntimeError):
             env.step(0)
 
     def test_success_timeout_and_reward_wrapper(self):
         for status, term, trunc, name, amount in (
-            (1, True, False, "success", 30), (-3, False, True, "timeout", -10)
+            (1, True, False, "success", 50), (-3, False, True, "timeout", -30)
         ):
             env = self.make_env()
             env.update.return_value = status
@@ -179,7 +180,9 @@ class RewardTests(unittest.TestCase):
             self.assertEqual((terminated, truncated), (term, trunc))
             self.assertTrue(info["transition_valid"])
             self.assertEqual(info["reward_terms"][name], amount)
-            self.assertAlmostEqual(reward, amount - 0.02)
+            speed_bonus = 10 if status == 1 else 0
+            self.assertEqual(info["reward_terms"]["level_speed"], speed_bonus)
+            self.assertAlmostEqual(reward, amount + speed_bonus)
             env.action_manager.take_action.assert_called_once_with(0)
             env.try_next_level.assert_not_called()
         env = self.make_env()
@@ -212,7 +215,7 @@ class RewardTests(unittest.TestCase):
         env.update.side_effect = enter_level
         env.step(0)
         self.assertEqual(env.reward_terms["stationary"], 0)
-        self.assertEqual(env.reward_terms["next_level"], 5)
+        self.assertEqual(env.reward_terms["next_level"], 20)
         env.game_window.hit_point = 3
         env.update.side_effect = lambda: (setattr(env.game_window, "hit_point", 4) or 0)
         env.step(0)
@@ -230,8 +233,112 @@ class RewardTests(unittest.TestCase):
             RewardConfig(), fire_reward=1, stationary=False, wall_collision=False,
             hp_lost=2, levels_passed=1, status=0,
         )
-        self.assertEqual(terms["damage"], -10)
-        self.assertEqual(terms["next_level"], 5)
+        self.assertEqual(terms["damage"], -20)
+        self.assertEqual(terms["next_level"], 20)
+
+    def test_level_speed_uses_elapsed_time_before_transition_resets_timer(self):
+        env = self.make_env()
+        env._combat_level = 1
+        env._combat_elapsed = 30
+
+        def navigate():
+            env.map.level = 2
+            env.can_next_level = Mock(return_value=True)
+            env._update_combat_timer()
+            return 0
+
+        env.try_next_level.side_effect = navigate
+        env.step(0)
+        self.assertEqual(env.combat_elapsed_seconds, 0)
+        self.assertEqual(env.last_step_info["level_time_ratio"], 0.25)
+        self.assertEqual(env.reward_terms["level_speed"], 7.5)
+        env.try_next_level.side_effect = None
+        env.step(0)
+        self.assertEqual(env.reward_terms["level_speed"], 0)
+
+    def test_boss_success_gets_speed_bonus(self):
+        env = self.make_env()
+        env.map.level = 4
+        env._combat_level = 4
+        env._combat_elapsed = 90
+        env.update.return_value = 1
+        env.step(0)
+        self.assertEqual(env.reward_terms["success"], 50)
+        self.assertEqual(env.reward_terms["level_speed"], 2.5)
+
+    def test_speed_bonus_is_clamped_and_requires_completion(self):
+        for status, passed, ratio, expected in (
+            (0, 1, 0, 10), (0, 1, 0.5, 5), (0, 1, 1, 0),
+            (0, 1, 1.5, 0), (0, 0, 0.5, 0), (-3, 0, 1, 0),
+            (-2, 0, 0.5, 0), (-4, 1, 0.5, 0),
+        ):
+            with self.subTest(status=status, passed=passed, ratio=ratio):
+                terms = calculate_reward(
+                    RewardConfig(), fire_reward=0, stationary=False,
+                    wall_collision=False, hp_lost=0, levels_passed=passed,
+                    status=status, level_time_ratio=ratio,
+                )
+                self.assertEqual(terms["level_speed"], expected)
+
+    def test_time_cost_does_not_depend_on_number_of_steps(self):
+        for steps in (1, 10, 100):
+            env = self.make_env()
+            env._combat_level = 1
+            total = 0
+            for index in range(steps):
+                def advance():
+                    env._combat_elapsed = 60 * (index + 1) / steps
+                    return 0
+                env.update.side_effect = advance
+                env.step(0)
+                total += env.reward_terms["combat_time"]
+            self.assertAlmostEqual(total, -5)
+
+    def test_time_cost_covers_both_sides_of_level_transition(self):
+        env = self.make_env()
+        env._combat_level = 1
+        env._combat_elapsed = 30
+
+        def navigate():
+            env._combat_elapsed = 40
+            env.map.level = 2
+            env.can_next_level = Mock(return_value=True)
+            env._update_combat_timer()
+            env._combat_elapsed = 3
+            return 0
+
+        env.try_next_level.side_effect = navigate
+        env.step(0)
+        self.assertAlmostEqual(env.reward_terms["combat_time"], -10 * 13 / 120)
+        self.assertAlmostEqual(env.reward_terms["level_speed"], 10 * (1 - 40 / 120))
+        env.try_next_level.side_effect = None
+        env.step(0)
+        self.assertEqual(env.reward_terms["combat_time"], 0)
+
+    def test_timeout_time_cost_is_capped_at_budget(self):
+        env = self.make_env()
+        env._combat_elapsed = 119
+
+        def timeout():
+            env._combat_elapsed = 121
+            return -3
+
+        env.update.side_effect = timeout
+        env.step(0)
+        self.assertAlmostEqual(env.reward_terms["combat_time"], -10 / 120)
+        self.assertEqual(env.reward_terms["timeout"], -30)
+
+    def test_engine_failure_discards_time_cost(self):
+        env = self.make_env()
+
+        def fail():
+            env._combat_elapsed = 60
+            return -4
+
+        env.update.side_effect = fail
+        env.step(0)
+        self.assertEqual(env.last_reward, 0)
+        self.assertEqual(env.reward_terms["combat_time"], 0)
 
 
 if __name__ == "__main__":

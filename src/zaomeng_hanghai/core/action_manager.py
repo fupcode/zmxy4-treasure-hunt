@@ -159,12 +159,8 @@ class ActionManager:
 
             return 1
 
-        if self.fire_direction is None:
-            # 不能开火，避战，奖励小分
-            self.fire_reward = 0.02
-        else:
-            # 不能开火，和敌人对峙，扣大分
-            self.fire_reward = -0.1
+        # 冷却由引擎控制，无论是否对齐敌人均不计奖惩。
+        self.fire_reward = 0.0
         return 0
 
     def take_action_direction(self, direction):

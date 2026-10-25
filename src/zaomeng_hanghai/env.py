@@ -65,7 +65,7 @@ class Env:
     state_space = OBSERVATION_DIM
     state_schema_version = OBSERVATION_SCHEMA_VERSION
 
-    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False, reward_config=None, combat_timeout=120):
+    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False, reward_config=None, combat_timeout=60):
         if not np.isfinite(combat_timeout) or combat_timeout <= 0:
             raise ValueError("combat_timeout must be positive and finite")
         self.render_enabled = render_enabled
@@ -96,6 +96,7 @@ class Env:
         self._reset_combat_timer()
 
     def _reset_combat_timer(self):
+        self._last_completed_combat = None
         self._combat_level = None
         self._combat_elapsed = 0.0
         self._combat_started_at = None
@@ -114,7 +115,9 @@ class Env:
     def _update_combat_timer(self):
         """同关累计战斗时间；空场暂停，切关重置，加载时间不计入。"""
         if self._combat_level != self.map.level:
+            completed = (self._combat_level, self.combat_elapsed_seconds)
             self._reset_combat_timer()
+            self._last_completed_combat = completed
             self._combat_level = self.map.level
         if not 1 <= self.map.level <= 4 or self.can_next_level():
             self._pause_combat_timer()
@@ -308,6 +311,8 @@ class Env:
         self.reward_terms = {}
         self.last_step_info = {}
         level_before = self.map.level
+        level_elapsed = self.combat_elapsed_seconds
+        combat_elapsed_before = level_elapsed
         hp_before = self.game_window.hit_point
         position_before = self._reward_position()
         wall_collision = bool(self.player is not None and self.map.is_move_collision(self.player, action))
@@ -319,6 +324,8 @@ class Env:
         error = None
         try:
             status_code = self.update()
+            if self.map.level == level_before:
+                level_elapsed = self.combat_elapsed_seconds
             if status_code == 0:
                 hp_after_action = self.game_window.hit_point
                 hp_lost = max(0, hp_before - hp_after_action)
@@ -338,19 +345,41 @@ class Env:
             error = str(exc)
 
         levels_passed = max(0, self.map.level - level_before) if level_before >= 1 else 0
+        if status_code:
+            self._pause_combat_timer()
+        completed = self._last_completed_combat
+        if self.map.level == level_before:
+            level_elapsed = self.combat_elapsed_seconds
+        elif completed is not None and completed[0] == level_before:
+            level_elapsed = completed[1]
+        # 跨关时保留上一关末尾耗时，同时计入本步内下一关已发生的战斗。
+        combat_seconds = 0.0
+        if level_before >= 1:
+            combat_seconds = max(
+                0.0, min(level_elapsed, self.combat_timeout)
+                - min(combat_elapsed_before, self.combat_timeout),
+            )
+        if self.map.level != level_before and 1 <= self.map.level <= 4:
+            combat_seconds += min(self.combat_elapsed_seconds, self.combat_timeout)
+        combat_time_fraction = combat_seconds / self.combat_timeout
+        level_time_ratio = None
+        if level_before >= 1 and (levels_passed > 0 or status_code == 1):
+            level_time_ratio = level_elapsed / self.combat_timeout
         self.reward_terms = calculate_reward(
             self.reward_config, fire_reward=fire_reward, stationary=stationary,
             wall_collision=wall_collision, hp_lost=hp_lost,
             levels_passed=levels_passed, status=status_code,
+            level_time_ratio=level_time_ratio,
+            combat_time_fraction=combat_time_fraction,
         )
         self.last_reward = float(sum(self.reward_terms.values()))
-        if status_code:
-            self._pause_combat_timer()
         self.last_step_info = {
             "status_code": status_code,
             "reward_terms": dict(self.reward_terms),
             "elapsed_seconds": time.monotonic() - started,
             "combat_elapsed_seconds": self.combat_elapsed_seconds,
+            "level_time_ratio": level_time_ratio,
+            "combat_time_fraction": combat_time_fraction,
             "transition_valid": status_code != -4,
         }
         if error is not None:

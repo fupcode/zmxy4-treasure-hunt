@@ -365,8 +365,7 @@ class Bullets(UserList[Bullet]):
 
         # 优先处理靠近玩家的子弹
         bullets.sort(
-            key=lambda bullet: abs(bullet.x - player.x)
-                               + abs(bullet.y - player.y)
+            key=lambda bullet: abs(bullet.x - player.x) + abs(bullet.y - player.y)
         )
 
         # 固定上一帧的子弹列表，避免匹配过程相互干扰

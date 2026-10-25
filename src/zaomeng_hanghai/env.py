@@ -221,7 +221,7 @@ class Env:
         self.falling_items.sort_by(self.player)
 
         current_time = time.time()
-        cool_down = 2
+        cool_down = 3
         for bullet in self.bullets.new_bullets:
             min_distance = np.inf
             fired_enemy = None
@@ -575,6 +575,6 @@ if __name__ == "__main__":
     else:
         target_ = 3
 
-    env_ = Env()
+    env_ = Env(render_enabled=True)
     env_.init_window()
     auto_loop(env_, target_)

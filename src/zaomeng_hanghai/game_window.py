@@ -485,15 +485,3 @@ class GameWindow:
 
 class GameWindowError(Exception):
     pass
-
-
-if __name__ == "__main__":
-    time.sleep(0.3)
-
-    env = GameWindow()
-    env.init_window()
-    env.get_map_index()
-    # env.update()
-
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()

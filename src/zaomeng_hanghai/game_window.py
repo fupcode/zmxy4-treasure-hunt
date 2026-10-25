@@ -48,6 +48,7 @@ class GameWindow:
         self.map_index = None
 
         self.player_box = None
+        self.detections = {}
         self.enemy_boxes = None
         self.bullet_list_normal = None
         self.falling_items_normal = None
@@ -85,14 +86,15 @@ class GameWindow:
         if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
             raise ValueError("Expected an RGB uint8 image with shape (H, W, 3)")
         self.window_image = image.copy()
+        self.detections = {}
 
         self.detect_item(self.window_image)
 
-        mask_width = int(self.window_image.shape[1] * self.left_top_mask_rate[0])
-        mask_height = int(self.window_image.shape[0] * self.left_top_mask_rate[1])
+        mask_width = int(round(self.window_image.shape[1] * self.left_top_mask_rate[0]))
+        mask_height = int(round(self.window_image.shape[0] * self.left_top_mask_rate[1]))
         self.window_image[0:mask_height, 0:mask_width] = 255
-        mask_width = int(self.window_image.shape[1] * self.left_bottom_mask_rate[0])
-        mask_height = int(self.window_image.shape[0] * self.left_bottom_mask_rate[1])
+        mask_width = int(round(self.window_image.shape[1] * self.left_bottom_mask_rate[0]))
+        mask_height = int(round(self.window_image.shape[0] * self.left_bottom_mask_rate[1]))
         self.window_image[mask_height:, 0:mask_width] = 255
 
         map_contours = self.locate_map_contours(self.window_image)
@@ -106,6 +108,7 @@ class GameWindow:
             return -1
 
         det = self.model(self.window_image, conf_threshold=conf_threshold)
+        self.detections = det
 
         self.player_box = self.filter_player(det)
         self.enemy_boxes = det['enemy']
@@ -115,13 +118,13 @@ class GameWindow:
         return 0
 
     def set_cursor_pos_normal(self, xn, yn):
-        x = int(self.window_box[0] + self.window_size[0] * xn)
-        y = int(self.window_box[1] + self.window_size[1] * yn)
+        x = int(round(self.window_box[0] + self.window_size[0] * xn))
+        y = int(round(self.window_box[1] + self.window_size[1] * yn))
         set_cursor_pos(x, y)
 
     def click_normal(self, xn, yn):
-        x = int(self.window_box[0] + self.window_size[0] * xn)
-        y = int(self.window_box[1] + self.window_size[1] * yn)
+        x = int(round(self.window_box[0] + self.window_size[0] * xn))
+        y = int(round(self.window_box[1] + self.window_size[1] * yn))
         click(x, y)
 
     def recover(self, status, end=False):
@@ -232,7 +235,8 @@ class GameWindow:
         height, width = self.window_image.shape[:2]
         for bullet_box in det['bullet']:
             x1, y1, x2, y2 = bullet_box.xyxyn
-            crop_box = (int(x1 * width), int(y1 * height), int(x2 * width), int(y2 * height))
+            crop_box = (int(round(x1 * width)), int(round(y1 * height)),
+                        int(round(x2 * width)), int(round(y2 * height)))
 
             image = self.crop_image_by_box(self.window_image, crop_box)
 
@@ -395,7 +399,8 @@ class GameWindow:
 
     def crop_by_rate(self, image, rate):
         h, w, _ = image.shape
-        return image[int(h * rate[2]):int(h * rate[3]), int(w * rate[0]):int(w * rate[1])]
+        return image[int(round(h * rate[2])):int(round(h * rate[3])),
+                     int(round(w * rate[0])):int(round(w * rate[1]))]
 
     def get_centroid_and_direction(self, outer, inners):
         outer_x, outer_y, outer_w, outer_h = cv2.boundingRect(outer)

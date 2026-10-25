@@ -79,7 +79,9 @@ def calculate_direction_penalty(current, prev, start, stride, max_penalty=10):
 
 def find_nearest_passable_point(maze, start):
     rows, cols = maze.shape
-    x, y = start
+    x = min(cols - 1, max(0, int(round(start[0]))))
+    y = min(rows - 1, max(0, int(round(start[1]))))
+    start = (x, y)
     if maze[y, x] == 0:
         return start  # 起点已经是通路
 
@@ -162,7 +164,7 @@ def find_nearest_passable_path(maze, start, flee_region, stride=5, distance_maze
 def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, hate_factor=1):
     # 迷宫的尺寸
     rows, cols = maze.shape
-    end = (int(end[0]), int(end[1]))
+    end = (min(cols - 1, max(0, int(round(end[0])))), min(rows - 1, max(0, int(round(end[1])))))
 
     # 八方向移动
     directions = [

@@ -26,6 +26,7 @@ class GameWindowImageTests(unittest.TestCase):
             self.assertEqual(window.update_from_image(image, conf_threshold=0.7), 0)
         np.testing.assert_array_equal(image, 0)
         self.assertEqual(window.enemy_boxes, [box])
+        self.assertEqual(window.detections["enemy"], [box])
         self.assertEqual(model.call_args.kwargs["conf_threshold"], 0.7)
         self.assertFalse(np.shares_memory(image, window.window_image))
         with self.assertRaisesRegex(RuntimeError, "capture is disabled"):
@@ -39,11 +40,13 @@ class GameWindowImageTests(unittest.TestCase):
         with patch("zaomeng_hanghai.game_window.OnnxModel", return_value=model):
             window = GameWindow(capture_enabled=False)
         image = np.zeros((200, 320, 3), dtype=np.uint8)
+        window.detections = {"enemy": [object()]}
         with patch.object(window, "locate_map_contours", return_value=[]), \
              patch.object(window, "get_hit_point", return_value=0), \
              patch.object(window, "is_failed", return_value=False), \
              patch.object(window, "is_successful", return_value=False):
             self.assertEqual(window.update_from_image(image), -1)
+            self.assertEqual(window.detections, {})
             model.assert_not_called()
             self.assertEqual(window.update_from_image(image, check_status=False), 0)
             model.assert_called_once()

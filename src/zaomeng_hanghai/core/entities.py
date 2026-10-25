@@ -80,14 +80,21 @@ def _match_by_distance(
     return best_assignment
 
 
+def _map_point(xn, yn):
+    """归一化位置四舍五入到网格索引；边缘坐标不能落到宽/高之外。"""
+    return (
+        min(MAZE_WIDTH - 1, max(0, int(round(xn * MAZE_WIDTH)))),
+        min(MAZE_HEIGHT - 1, max(0, int(round(yn * MAZE_HEIGHT)))),
+    )
+
+
 class Player:
     def __init__(self, player_box, maze):
         xywhn = player_box.xywhn
         self.xn = xywhn[0]
         self.yn = xywhn[1] + xywhn[3] / 5
 
-        x = int(self.xn * MAZE_WIDTH)
-        y = int(self.yn * MAZE_HEIGHT)
+        x, y = _map_point(self.xn, self.yn)
 
         self.x, self.y = maze_utils.find_nearest_passable_point(maze, (x, y))
 
@@ -130,18 +137,19 @@ class Enemy:
         self.xn = xywhn[0]
         self.yn = xywhn[1] + xywhn[3] / 6
 
-        x = int(self.xn * MAZE_WIDTH)
-        y = int(self.yn * MAZE_HEIGHT)
+        x, y = _map_point(self.xn, self.yn)
 
         self.x, self.y = maze_utils.find_nearest_passable_point(maze, (x, y))
 
         self.x1n, self.y1n, self.x2n, self.y2n = enemy_box.xyxyn
         self.y1n += xywhn[3] / 2
 
-        self.x1 = int(self.x1n * MAZE_WIDTH)
-        self.y1 = int(self.y1n * MAZE_HEIGHT)
-        self.x2 = int(self.x2n * MAZE_WIDTH)
-        self.y2 = int(self.y2n * MAZE_HEIGHT)
+        print(self.x2n - self.x1n, self.y2n - self.y1n)
+
+        self.x1 = int(round(self.x1n * MAZE_WIDTH))
+        self.y1 = int(round(self.y1n * MAZE_HEIGHT))
+        self.x2 = int(round(self.x2n * MAZE_WIDTH))
+        self.y2 = int(round(self.y2n * MAZE_HEIGHT))
 
         self.disappear_count = 0
         self.fired = False
@@ -325,8 +333,7 @@ class Bullet:
 
     def __init__(self, bullet_info):
         self.xn, self.yn, self.d = bullet_info
-        self.x = int(self.xn * MAZE_WIDTH)
-        self.y = int(self.yn * MAZE_HEIGHT)
+        self.x, self.y = _map_point(self.xn, self.yn)
 
         self.disappear_count = 0
 
@@ -469,8 +476,7 @@ class FallingItem:
     def __init__(self, item_pos_normal):
         self.xn, self.yn = item_pos_normal
 
-        self.x = int(self.xn * MAZE_WIDTH)
-        self.y = int(self.yn * MAZE_HEIGHT)
+        self.x, self.y = _map_point(self.xn, self.yn)
 
         self.disappear_count = 0
 

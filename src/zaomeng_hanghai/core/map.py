@@ -178,15 +178,15 @@ class Map:
     def init_map_template(self, maze_size):
         width, height = maze_size
         map_template = np.zeros((height, width), dtype=np.bool_)
-        exit_left = int(width * EXIT_LEFT)
-        exit_right = int(width * EXIT_RIGHT)
-        exit_up = int(height * EXIT_UP)
-        exit_down = int(height * EXIT_DOWN)
+        exit_left = int(round(width * EXIT_LEFT))
+        exit_right = int(round(width * EXIT_RIGHT))
+        exit_up = int(round(height * EXIT_UP))
+        exit_down = int(round(height * EXIT_DOWN))
 
-        edge_left = int(width * EDGE_LEFT)
-        edge_right = int(width * EDGE_RIGHT)
-        edge_up = int(height * EDGE_UP)
-        edge_down = int(height * EDGE_DOWN)
+        edge_left = int(round(width * EDGE_LEFT))
+        edge_right = int(round(width * EDGE_RIGHT))
+        edge_up = int(round(height * EDGE_UP))
+        edge_down = int(round(height * EDGE_DOWN))
 
         map_template[:edge_up, :] = 1
         map_template[edge_down:, :] = 1
@@ -198,9 +198,9 @@ class Map:
         map_template[exit_up:exit_down, :] = 0
         map_template[:, exit_left:exit_right] = 0
 
-        left_top = (int(0.22 * MAZE_WIDTH), int(0.18 * MAZE_HEIGHT))
-        right_top1 = (int(0.68 * MAZE_WIDTH), int(0.19 * MAZE_HEIGHT))
-        right_top2 = (int(0.86 * MAZE_WIDTH), int(0.25 * MAZE_HEIGHT))
+        left_top = (int(round(0.22 * MAZE_WIDTH)), int(round(0.18 * MAZE_HEIGHT)))
+        right_top1 = (int(round(0.68 * MAZE_WIDTH)), int(round(0.19 * MAZE_HEIGHT)))
+        right_top2 = (int(round(0.86 * MAZE_WIDTH)), int(round(0.25 * MAZE_HEIGHT)))
 
         map_template_without_exit[:left_top[1], :left_top[0]] = 1
         map_template_without_exit[:right_top1[1], right_top1[0]:] = 1
@@ -222,15 +222,15 @@ class Map:
         width, height = maze_size
         tasks = self.tasks_list[self.map_index]
 
-        map_left = int(MAP_LEFT * width)
-        map_up = int(MAP_UP * height)
-        map_width = int((MAP_RIGHT - MAP_LEFT) * width)
-        map_height = int((MAP_DOWN - MAP_UP) * height)
+        map_left = int(round(MAP_LEFT * width))
+        map_up = int(round(MAP_UP * height))
+        map_width = int(round((MAP_RIGHT - MAP_LEFT) * width))
+        map_height = int(round((MAP_DOWN - MAP_UP) * height))
 
-        collision_left = int(maze_size[0] * COLLISION_LEFT)
-        collision_right = int(maze_size[0] * COLLISION_RIGHT)
-        collision_up = int(maze_size[1] * COLLISION_UP)
-        collision_down = int(maze_size[1] * COLLISION_DOWN)
+        collision_left = int(round(maze_size[0] * COLLISION_LEFT))
+        collision_right = int(round(maze_size[0] * COLLISION_RIGHT))
+        collision_up = int(round(maze_size[1] * COLLISION_UP))
+        collision_down = int(round(maze_size[1] * COLLISION_DOWN))
 
         for task in tasks:
             maze = np.zeros((height, width), dtype=np.bool_)
@@ -413,8 +413,8 @@ class Map:
         if action == 0:
             return False
         dx, dy = move_list[action - 1]
-        dx *= int(0.012 * MAZE_WIDTH)
-        dy *= int(0.016 * MAZE_HEIGHT)
+        dx *= int(round(0.012 * MAZE_WIDTH))
+        dy *= int(round(0.016 * MAZE_HEIGHT))
         maze = self.get_maze()
         height, width = maze.shape
 

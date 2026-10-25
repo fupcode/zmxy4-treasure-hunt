@@ -144,18 +144,18 @@ class Enemy:
         self.x, self.y = maze_utils.find_nearest_passable_point(maze, (x, y))
 
         self.x1n, self.y1n, self.x2n, self.y2n = enemy_box.xyxyn
-        self.y1n += xywhn[3] / 2
+        self.y1n += xywhn[3] / 2 + 0.004
         self.y2n -= 0.008
 
         if enemy_box.xywhn[2] > 0.07:
             # boss
-            horizontal_reduction = 0.012
+            horizontal_reduction = 0.015
             self.y1n += 0.004
             self.y2n -= 0.008
             self.cool_down_time = 1
 
         else:
-            horizontal_reduction = 0.004
+            horizontal_reduction = 0.006
             self.cool_down_time = 3
 
         self.x1n += horizontal_reduction

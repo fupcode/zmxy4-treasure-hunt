@@ -540,14 +540,12 @@ class Map:
             moveable_maze[bullet.y - hit_height:bullet.y + hit_height, bullet.x - hit_width:bullet.x + hit_width] = 1
             obstacle_distance_maze[bullet.y - 4 * hit_height:bullet.y + 4 * hit_height,
                                    bullet.x - 4 * hit_width:bullet.x + 4 * hit_width] = 0
-        kernel = np.ones((15, 15), np.uint8)
-        larger_flee_region_bullet = binary_dilation(flee_region_bullet, kernel, iterations=1)
 
         flee_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         if self.level != 4:
-            flee_const = 40
+            flee_const = 42
         else:
-            flee_const = 50
+            flee_const = 56
         for enemy in enemy_list:
             if enemy is not None:
                 enemy_distance_r = flee_const - enemy.distance_array
@@ -556,24 +554,24 @@ class Map:
 
         peek_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         peek_cross_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
-        peek_x = 65
-        peek_y = 50
+        peek_const = 70
         for enemy in enemy_list:
             if enemy is None or enemy.is_safe():
                 continue
-            range_left = max(0, enemy.x1 - peek_x)
-            range_right = min(MAZE_WIDTH, enemy.x2 + peek_x)
-            range_up = max(0, enemy.y1 - peek_y)
-            range_down = min(MAZE_HEIGHT, enemy.y2 + peek_y)
+            enemy_distance_r = peek_const - enemy.distance_array
+            enemy_distance_r[enemy_distance_r < 0] = 0
+            peek_region_enemy += enemy_distance_r
+
+            # 菱形的有效范围为距离 < peek_const，切片右端不包含在内。
+            range_left = max(0, enemy.x - peek_const + 1)
+            range_right = min(MAZE_WIDTH, enemy.x + peek_const)
+            range_up = max(0, enemy.y - peek_const + 1)
+            range_down = min(MAZE_HEIGHT, enemy.y + peek_const)
 
             mask = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=bool)
-            mask[range_up:range_down, range_left:range_right] = True
-            peek_region_enemy[mask] += np.max(enemy.distance_array[mask]) - enemy.distance_array[mask]
-
-            mask = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=bool)
-            mask[enemy.y1:enemy.y2, range_left:range_right] = True
-            mask[range_up:range_down, enemy.x1:enemy.x2] = True
-            peek_cross_enemy[mask] += np.max(enemy.distance_array[mask]) - enemy.distance_array[mask]
+            mask[max(range_up, enemy.y1):min(range_down, enemy.y2), range_left:range_right] = True
+            mask[range_up:range_down, max(range_left, enemy.x1):min(range_right, enemy.x2)] = True
+            peek_cross_enemy[mask] += 1
 
         for enemy in enemy_list:
             if enemy is not None:
@@ -589,25 +587,33 @@ class Map:
             player.y - np.arange(MAZE_HEIGHT)[:, np.newaxis])
         decay_array = MAZE_HEIGHT / (distance_array + MAZE_HEIGHT)
         end_region *= decay_array
-        end_region[larger_flee_region_bullet > 0] = 0
+        end_region[flee_region_bullet > 0] = 0
         end_region[flee_region_enemy > 0] = 0
         end_peek_region = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
         mask = peek_cross_enemy > 0
         end_peek_region[mask] = end_region[mask]
 
         """
+        调试图由 cv2.imshow 按 BGR 显示。
+        peek_region_enemy区域为淡灰色，优先级最低
         flee_region_bullet区域为黄色
-        flee_region_enemy区域为粉色
+        flee_region_enemy区域为红色
         end_peek_region区域为黄色
         end_region区域为紫色
         """
         if self.render_enabled:
-            self.debug_image = np.stack([255 * end_region, end_region, 255 * end_region], axis=-1).astype(np.uint8)
-            mask = end_peek_region > 0
-            self.debug_image[mask] = np.stack([end_peek_region, 255 * end_peek_region, 255 * end_region], axis=-1).astype(np.uint8)[mask]
+            self.debug_image = np.zeros((MAZE_HEIGHT, MAZE_WIDTH, 3), dtype=np.uint8)
+            peek_region_enemy_image = peek_region_enemy / (np.max(peek_region_enemy) + 1)
+            mask = peek_region_enemy > 0
+            peek_gray = (30 + 40 * peek_region_enemy_image).astype(np.uint8)
+            self.debug_image[mask] = np.stack([peek_gray, peek_gray, peek_gray], axis=-1)[mask]
             flee_region_enemy_image = flee_region_enemy / (np.max(flee_region_enemy) + 1)
             mask = flee_region_enemy > 0
             self.debug_image[mask] = np.stack([flee_region_enemy_image, flee_region_enemy_image, 255 * flee_region_enemy_image], axis=-1).astype(np.uint8)[mask]
+            mask = end_region > 0
+            self.debug_image[mask] = np.stack([255 * end_region, end_region, 255 * end_region], axis=-1).astype(np.uint8)[mask]
+            mask = end_peek_region > 0
+            self.debug_image[mask] = np.stack([end_peek_region, 255 * end_peek_region, 255 * end_region], axis=-1).astype(np.uint8)[mask]
             flee_region_bullet_image = flee_region_bullet / (np.max(flee_region_bullet) + 1)
             mask = flee_region_bullet > 0
             self.debug_image[mask] = np.stack([flee_region_bullet_image, 255 * flee_region_bullet_image, 255 * flee_region_bullet_image], axis=-1).astype(np.uint8)[mask]

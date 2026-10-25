@@ -17,7 +17,7 @@ class PPOConfig:
     rollout_steps: int = 2048
     update_epochs: int = 10
     batch_size: int = 256
-    gamma: float = 0.99
+    gamma: float = 0.999
     gae_lambda: float = 0.95
     clip_range: float = 0.2
     entropy_coef: float = 0.01

@@ -1,190 +1,161 @@
-# 专家数据位置与格式
+# 专家数据采集与格式
 
-当前环境与训练已升级为 [状态编码 v2（86 维）](state-encoding.md)。
-新数据必须使用 `schema_version=2`、`observation_schema_version=2`、`observation_dim=86`，
-NPZ 的 `obs` 为 `(N,86)`；其他字段结构沿用本页说明。
-本页下方的 60 维布局与旧采集目录说明保留用于解释历史 v1 数据，
-当前 BC 加载器会拒绝这些旧记录，不能通过修改元数据直接转换。
+每次调用 `Env.auto_run()` 都会从 `reset()` 开始运行一局专家，并记录该局的开局和战斗动作。
+`auto_loop()`、`main.py` 和环境模块的自动模式均使用此入口，无需额外采集脚本。
+只读 `--debug`、策略推理和 PPO 的 `step()` 不会采集专家数据。
 
-## 采集命令与保存位置
+## 启动与保存位置
 
-在项目根目录运行，游戏需停在航海起始界面且保持无遮挡：
+在项目根目录运行，游戏停在航海起始界面且保持无遮挡：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.collect_expert --episodes 100
+.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.env 3
 ```
 
-默认保存到项目根目录下的 `data/expert/<日期_时间_随机后缀>/`，例如：
+`3` 表示目标成功次数，不是尝试局数；死亡或超时后恢复并继续，直到成功次数达到目标。
+默认开启调试窗口。也可以运行 `main.py`，通过交互选择游戏窗口和目标成功次数。
 
-```text
-D:\project\personal\zaomeng\zaomeng-hanghai\data\expert\20261024_160000_ab12cd34\
+默认目录为项目根目录下的 `data/expert/<日期_时间_随机后缀>/`，启动时输出
+`Expert data directory:`。同一次 `auto_loop()` 的所有尝试写入一个运行目录。
+`data/expert/` 已被 Git 忽略。
+
+指定一个尚不存在的目录：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.env 3 --expert-output data/expert/my_run
 ```
 
-上面的运行目录名仅为示例。实际路径会在启动后以 `Expert data directory:` 输出。
-`--output data/expert/my_run` 可以指定新的保存目录；已有目录不会被覆盖，也不支持从该目录续跑。
-`data/expert/` 已加入 `.gitignore`，数据不会默认提交到 Git。
+已有目录不会覆盖，也不支持追加续跑。环境模块启动时会切换至项目根目录，相对输出路径以项目根目录为基准。
+Python API 中的相对输出路径以当前工作目录为基准：
 
-常用选项：
+```python
+from zaomeng_hanghai.env import Env, auto_loop
 
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `--episodes` | `100` | 尝试局数，包含死亡、超时和被过滤的局，并非保留局数或成功局数 |
-| `--output` | 自动创建运行目录 | 保存位置，相对路径以当前工作目录为基准 |
-| `--render` | 不开启 | 加上此选项显示调试窗口 |
-| `--max-episode-seconds` | `300` | 在主循环检查的整局超时预算；阻塞中的单次调用可能使实际结束时间超过预算 |
+env = Env(render_enabled=False, combat_timeout=120)
+env.init_window()
+status = env.auto_run()  # 单局；每次独立调用默认创建一个新目录
+print(env.expert_data_path)
+# 或：auto_loop(env, target=3, expert_output="data/expert/my_run")
+```
 
-## 采集范围与过滤
+`auto_run()` 返回终局状态码；单局 API 不负责恢复游戏，下一局前需自行调用
+`env.game_window.recover(status)`。`auto_loop()` 会负责恢复。
+默认单关战斗时限沿用 `Env` 的设置（当前默认 60 秒），可在构造环境时自定义。
+旧文档中的 `zaomeng_hanghai.collect_expert`、`--episodes`、`--max-episode-seconds`
+不是当前入口；当前没有额外的整局时间预算。
 
-- 只采集 `level=1..4` 的开局动作（`start`）和战斗动作（`combat`）。
-- 不保存 `try_next_level()` 内的拾取、寻找出口等导航动作，也不保存 `level=0` 的起始区域动作。
-- 在 `take_action_direction(direction)` 入口、开火和修改移动按键之前复制观测，并将传入的目标方向转换为动作编号。
-- 若整局以死亡 `status=-2` 结束且 `terminal_level=1`，丢弃该局所有样本。
-- 采集异常或没有有效样本的局也不会生成 NPZ。
-- 第 2–4 关死亡或超时的局，只要有样本且没有采集异常，仍保留并标记结果；不要求整局通关。
-- `Ctrl+C` 会保留已完成且符合规则的局；当前未完成局按采集异常丢弃。
+## 采集范围和过滤
 
-## 运行目录结构
+- 只保存 `level=1..4` 的 `start` 和 `combat` 动作。
+- 在专家动作入口、开火和修改移动按键之前复制 `state_encode()`，保存目标移动方向。
+- `try_next_level()` 的拾取、寻找出口等导航动作与 `level=0` 动作不保存。
+- 动作编号不包含公共控制器的开火或临时转向，也不是寻路策略编号 `move_index`。
+- 第一关死亡的整局丢弃；第 2–4 关死亡、单关战斗超时的局，只要有有效样本就保留。
+- 引擎故障、异常、Ctrl+C 中断或没有有效样本的局不生成 NPZ，但写入清单。
+- Ctrl+C 后已完成并保留的局仍可训练，当前未完成局丢弃。
+
+## 文件结构
 
 ```text
 <run>/
-├── config.json           # 格式版本、动作/阶段映射、目标局数、字段语义
-├── progress.json         # 当前运行状态和累计统计
-├── manifest.jsonl        # 每个已结束的局一行，包括被丢弃的局
-├── episode_0002.npz      # 每个保留局一个压缩 NumPy 文件
-└── episode_0005.npz
+├── config.json
+├── progress.json
+├── manifest.jsonl
+├── episode_0001.npz
+└── episode_0003.npz
 ```
 
-局编号从 `1` 开始，文件编号可能不连续，因为被丢弃的局没有 NPZ 文件。
-写入期间可能短暂出现 `.tmp` 文件，读取数据时只使用清单中 `kept=true` 的文件。
-采集进程异常退出时，临时文件不应作为训练数据。
+局编号从 1 开始；被丢弃的局无 NPZ，因此文件编号可能不连续。
+配置、进度和 NPZ 先写 `.tmp` 再替换；NPZ 完成后才追加清单。
+读取时只使用 `manifest.jsonl` 中 `kept=true` 的文件；忽略临时文件和未被清单引用的文件。
+进程被强制终止时，当前局可能只有进度记录，没有清单条目。
+
+`config.json` 声明 `schema_version=2`、`observation_schema_version=2`、
+`observation_dim=86`、动作顺序、阶段映射、战斗时限和过滤规则。
+当前观测布局详见 [状态编码 v2](state-encoding.md)。旧 60/81 维数据不兼容，
+不能通过修改元数据转换；建议为新数据使用单独的训练根目录，避免混入旧目录。
 
 ## NPZ 字段
 
-所有字段均可使用 `numpy.load(path, allow_pickle=False)` 读取。设该局保留的样本数为 `N`：
+使用 `numpy.load(path, allow_pickle=False)`。设本局样本数为 `N`：
 
 | 字段 | shape | dtype | 含义 |
 | --- | --- | --- | --- |
-| `obs` | `(N, 60)` | `float32` | 动作入口处的观测快照 |
-| `acts` | `(N,)` | `int64` | 专家目标移动动作，范围 `0..8` |
-| `phases` | `(N,)` | `int8` | `0=start`，`1=combat` |
-| `levels` | `(N,)` | `int8` | 当前第几关，范围 `1..4`，未归一化 |
-| `tasks` | `(N,)` | `int8` | 关卡类型，范围 `0..8`，未做 one-hot |
-| `map_indices` | `(N,)` | `int8` | 大地图编号，范围 `0..6` |
-| `segments` | `(N,)` | `int32` | 局内片段编号，从 `0` 开始 |
-| `timestamps` | `(N,)` | `float64` | 从本局开始到动作入口的秒数，使用单调时钟，不是日期时间 |
-| `dt` | `(N,)` | `float32` | 从当前动作入口到下一次动作入口或本局结束的秒数 |
-| `episode_id` | `()` | `int32` | 本次运行内的局编号 |
-| `status` | `()` | `int8` | 本局结束状态码 |
-| `terminal_level` | `()` | `int8` | 本局结束时的关卡编号 |
+| `obs` | `(N, 86)` | `float32` | 动作执行前的观测快照 |
+| `acts` | `(N,)` | `int64` | 目标移动动作，范围 0..8 |
+| `phases` | `(N,)` | `int8` | 0=start，1=combat |
+| `levels` | `(N,)` | `int8` | 关卡编号，1..4 |
+| `tasks` | `(N,)` | `int8` | 关卡类型，0..8 |
+| `map_indices` | `(N,)` | `int8` | 大地图编号，0..6 |
+| `segments` | `(N,)` | `int32` | 局内片段编号，从 0 开始 |
+| `timestamps` | `(N,)` | `float64` | 从本局 reset 前到动作入口的单调时钟秒数 |
+| `dt` | `(N,)` | `float32` | 到下一次专家动作入口或本局结束的秒数 |
+| `episode_id` | `()` | `int32` | 运行内的局编号 |
+| `status` | `()` | `int8` | 终局状态码 |
+| `terminal_level` | `()` | `int8` | 结束时关卡编号 |
 
-`dt` 的下一次动作可以是不保存的导航动作；它不是到“下一条保留样本”的时间差，
-也不等于 `fire()` 或按键函数自身的耗时。转向等待、观测更新、显式停留等会影响这个值。
+`dt` 的下一次动作可以是不保存的导航动作，不是到下一条保留样本的时间差。
+开火、转向等待、观测更新与显式停留均可能影响 `dt`。
+阶段、关卡、大地图或任务发生变化，或中间出现不保存的动作后，会开始新片段。
+片段编号只在同一局内有意义。
 
-阶段、大地图、关卡发生变化，或中间出现不保存的动作后，下一条保存样本会使用新 `segment`。
-片段编号只在同一局内有意义，跨文件使用时应同时保留运行目录和 `episode_id`。
-
-这些数据是行为克隆的 `(obs, acts)` 样本，**不包含 `reward`、`next_obs` 或逐步 `done`**。
-导航阶段被省略，不能直接把相邻两条观测视为连续强化学习转移；即便在同一片段，仍需注意实际 `dt`。
-
-### 历史 v1：60 维观测布局
-
-以下切片采用 Python 的左闭右开规则：
-
-| 索引 | 含义 |
-| --- | --- |
-| `0:2` | 角色归一化位置 `[x, y]` |
-| `2` | 剩余开火冷却除以 `0.6`，裁剪到 `[0, 1]` |
-| `3` | HP 除以 `4`，裁剪到 `[0, 1]` |
-| `4:7` | `pao、dan、fan` 三种道具的拥有标志，取 `0/1` |
-| `7` | 当前关卡 `level / 4` |
-| `8:17` | 9 种关卡类型 one-hot |
-| `17:32` | 最近 5 个敌人，每个 `[存在标志, x, y]`，共 15 维 |
-| `32:60` | 最近 4 颗危险弹幕，每颗 `[存在标志, 右, 下, 左, 上, x, y]`，共 28 维 |
-
-敌人和弹幕的位置为绝对归一化坐标，不是相对角色的坐标。不足固定数量时补零，超出时保留最近的实体。
-弹幕方向使用四维 one-hot；敌人不编码方向和速度。
-关卡类型 one-hot 表示地图类型编号，观测中没有直接存储障碍网格。
+这些是行为克隆 `(obs, acts)` 数据，不包含 `reward`、`next_obs` 或逐步 `done`。
+不能直接将相邻样本作为连续强化学习转移。
 
 ### 动作编号
 
-| `acts` | 目标方向 | 按键 |
+| acts | 目标方向 | 按键 |
 | --- | --- | --- |
-| `0` | 停止移动 | 无 |
-| `1` | 右 | D |
-| `2` | 下 | S |
-| `3` | 左 | A |
-| `4` | 上 | W |
-| `5` | 右下 | SD |
-| `6` | 左下 | SA |
-| `7` | 右上 | WD |
-| `8` | 左上 | WA |
+| 0 | 停止移动 | 无 |
+| 1 | 右 | D |
+| 2 | 下 | S |
+| 3 | 左 | A |
+| 4 | 上 | W |
+| 5 | 右下 | SD |
+| 6 | 左下 | SA |
+| 7 | 右上 | WD |
+| 8 | 左上 | WA |
 
-动作标签是目标移动方向，不是寻路策略编号 `move_index`，也不包含开火动作。
-开火由公共控制器执行，包括开火所需的临时转向。
+## 状态与清单
 
-## 状态码与 JSON 文件
+| 状态码 | 含义 | 是否保留 |
+| --- | --- | --- |
+| 1 | 通关成功 | 有样本则保留 |
+| -2 | 死亡 | 第一关丢弃；其余有样本则保留 |
+| -3 | 单关累计战斗超时 | 有样本则保留 |
+| -4 | 加载、导航等引擎故障，或采集异常、中断 | 丢弃 |
 
-| 状态码 | 含义 |
-| --- | --- |
-| `1` | 通关成功 |
-| `-2` | 死亡 |
-| `-3` | 超时，包括过关/开局接管超时或整局时间预算耗尽 |
-| `-4` | 采集异常或中断，仅记入清单，不保存当前局 NPZ |
+战斗计时在空场暂停，加载不计时，进入下一关重置。
 
-以上是已有 schema_version=1 采集文件的历史状态码语义，不修改已有数据。
-当前 `Env` 已将 `-3` 专用于单关战斗超时，`-4` 用于加载/自动过关等引擎截断；
-新采集逻辑应将引擎故障作为丢弃局处理。BC 读取器仍会跳过 `status=-4` 的局。
+`manifest.jsonl` 每行对应一个已结束的尝试，包含：
 
-历史 `config.json` 使用 `schema_version=1`，声明 60 维观测、动作和阶段映射，以及采集过滤规则。
-当前 v2 元数据及 86 维字段布局见 [状态编码说明](state-encoding.md)。
+- `episode_id、status、success、terminal_level、max_recorded_level`：编号和结果。
+- `kept、discard_reason、file`：是否保留、丢弃原因和相对 NPZ 文件名。
+- `sample_count、start_samples、combat_samples、duration_seconds`：采样数量和整局耗时。
+- `error`：异常信息，无异常为 null。
 
-`progress.json` 包含：
+`discard_reason` 为 `died_at_level_1 / no_samples / collection_error`；保留局为 null。
+被丢弃局的样本数量表示丢弃前的数量，不代表已保存的训练样本。
 
-- `state`：`created / running / completed / failed / interrupted`。
-- `target_episodes、finished_episodes、active_episode`：目标局数、已结束局数和进行中的局编号。
-- `kept_episodes、discarded_episodes、successful_episodes、saved_samples`：累计保留、丢弃、成功局数及保存样本数。
-- `error`：错误信息，无错误时为 `null`。
+`progress.json` 包含 `state`（created/running/completed/failed/interrupted）、
+`finished_episodes、active_episode、kept_episodes、discarded_episodes、successful_episodes、saved_samples、error`。
+`completed` 表示本次调用正常结束，不表示所有尝试均通关；运行目标由 `auto_loop(target=...)` 控制。
 
-`manifest.jsonl` 每行是一个独立 JSON 对象，字段包括：
-
-- `episode_id、status、success、terminal_level、max_recorded_level`：局编号和结果。
-- `kept、discard_reason、file`：是否保留、丢弃原因、相对运行目录的 NPZ 文件名。
-- `sample_count、start_samples、combat_samples、duration_seconds`：该局采集到的数量和总耗时。
-- `error`：采集异常说明。
-
-`discard_reason` 为 `died_at_level_1 / no_samples / collection_error`，保留局为 `null`。
-被丢弃局的 `sample_count` 仍表示丢弃前采集到的样本数，不代表已落盘的训练样本数。
-
-## 读取示例
-
-在项目根目录运行以下 Python 代码，将目录替换为实际运行目录：
+## 读取与训练
 
 ```python
-import json
-from pathlib import Path
+from zaomeng_hanghai.train.expert_data import load_episodes, concatenate
 
-import numpy as np
-
-run_dir = Path("data/expert/实际运行目录")
-episodes = [
-    json.loads(line)
-    for line in (run_dir / "manifest.jsonl").read_text(encoding="utf-8").splitlines()
-    if line.strip()
-]
-
-observations, actions = [], []
-for episode in episodes:
-    if not episode["kept"]:
-        continue
-    with np.load(run_dir / episode["file"], allow_pickle=False) as data:
-        observations.append(data["obs"].copy())
-        actions.append(data["acts"].copy())
-        print(episode["episode_id"], data["obs"].shape, int(data["status"].item()))
-
-if observations:
-    obs = np.concatenate(observations)  # (总样本数, 60)
-    acts = np.concatenate(actions)     # (总样本数,)
+episodes = load_episodes("data/expert/实际运行目录")
+obs, acts = concatenate(episodes)
+print(obs.shape, acts.shape)  # (总样本数, 86), (总样本数,)
 ```
 
-训练集/验证集建议按整局划分，避免把同一局中高度相似的相邻帧随机分到两边。
-暂不使用当前采集进程正在写入的局，也不根据文件编号是否连续来判断数据损坏。
+加载器会校验 v2 配置、有限观测值、动作范围及清单样本数，并跳过被过滤的局。
+训练集和验证集按整局划分，避免相邻帧泄漏：
+
+```powershell
+.\.venv\Scripts\python.exe -m zaomeng_hanghai.train.train_bc --data data/expert/实际运行目录
+```
+
+默认验证集需要至少两局保留数据；只有一局时可显式传入 `--validation-fraction 0`。

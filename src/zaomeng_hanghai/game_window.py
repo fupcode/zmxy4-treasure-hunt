@@ -48,6 +48,7 @@ class GameWindow:
             except Exception as exc:
                 print(f"DXGI screen capture initialization failed: {exc}. Trying WinRT.")
                 self.camera = dxcam.create(backend="winrt")
+                self.camera.start(target_fps=45)
 
         self.model = OnnxModel(yolo_weight_path)
 
@@ -67,10 +68,6 @@ class GameWindow:
         self.falling_items_normal = None
 
         self.items = {"pao": False, "dan": False, "fan": False}
-
-        if self.camera is not None:
-            # 持续采集，使识别时可以直接读取最新缓冲帧。
-            self.camera.start(target_fps=60)
 
     def init_window(self, outer_window_box=None):
         screen_image = self.capture_screen(outer_window_box)
@@ -148,7 +145,9 @@ class GameWindow:
         time.sleep(3)
         key_up("J")
         key_up_all()
-        if status == -2:
+
+        image = self.capture_screen(box=self.window_box)
+        if status == -2 or self.is_failed(image):
             print("Failed.")
             self.click_normal(0.4, 0.712)
             time.sleep(3)

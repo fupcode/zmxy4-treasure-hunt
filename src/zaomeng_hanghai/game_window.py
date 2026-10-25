@@ -36,13 +36,18 @@ class GameWindow:
     # 按 1762 × 1106 参考窗口换算的相对坐标。
     REFRESH_CLICK_POSITIONS = (
         (859 / 1762, 969 / 1106),
-        (1135 / 1762, 314 / 1106),
-        (1505 / 1762, 265 / 1106),
+        (1135 / 1762, 314 / 1106)
     )
 
     def __init__(self, yolo_weight_path="weights/best.onnx", *, capture_enabled=True):
         self.refresh_on_engine_timeout = False
-        self.camera = dxcam.create() if capture_enabled else None
+        self.camera = None
+        if capture_enabled:
+            try:
+                self.camera = dxcam.create()
+            except Exception as exc:
+                print(f"DXGI screen capture initialization failed: {exc}. Trying WinRT.")
+                self.camera = dxcam.create(backend="winrt")
 
         self.model = OnnxModel(yolo_weight_path)
 
@@ -62,6 +67,10 @@ class GameWindow:
         self.falling_items_normal = None
 
         self.items = {"pao": False, "dan": False, "fan": False}
+
+        if self.camera is not None:
+            # 持续采集，使识别时可以直接读取最新缓冲帧。
+            self.camera.start(target_fps=60)
 
     def init_window(self, outer_window_box=None):
         screen_image = self.capture_screen(outer_window_box)
@@ -171,7 +180,7 @@ class GameWindow:
             time.sleep(3)
 
     def start_hanghai(self, end=False):
-        max_confidence = 0
+        max_confidence = 0.6
         icon_box: DetectionResult | None = None
         for i in range(10):
             self.set_cursor_pos_normal(0.75, 0.072)
@@ -330,11 +339,22 @@ class GameWindow:
     def capture_screen(self, box=None):
         if self.camera is None:
             raise RuntimeError("Screen capture is disabled; use update_from_image()")
+        deadline = time.monotonic() + 5.0
         while True:
-            image = self.camera.grab(region=box)
+            # 后台采集时 grab() 读取最新缓冲帧；区域须在取得全屏图后裁剪。
+            image = self.camera.grab()
 
             if image is not None:
-                return image
+                if box is None:
+                    return image
+                left, top, right, bottom = box
+                height, width = image.shape[:2]
+                if not (0 <= left < right <= width and 0 <= top < bottom <= height):
+                    raise ValueError(f"Capture region {box} is outside frame size {width} x {height}")
+                return image[top:bottom, left:right].copy()
+
+            if time.monotonic() >= deadline:
+                raise TimeoutError("No screen frame received within 5 seconds")
 
             time.sleep(0.001)
 

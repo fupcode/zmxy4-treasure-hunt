@@ -309,17 +309,50 @@ class Map:
 
         self.next_exit = self.route[self.level]
 
+    def _fire_axis_mask(self, maze, enemy, index, axis):
+        """一条对齐射线的可开火位置；统一整数坐标、中心射程和逐格遮挡。"""
+        height, width = maze.shape
+        if axis == 0:
+            valid = 0 <= index < width and enemy.x1 < index < enemy.x2
+            center, limit = enemy.y, FIRE_Y_RANGE
+            line = maze[:, index] if valid else None
+            length = height
+        else:
+            valid = 0 <= index < height and enemy.y1 < index < enemy.y2
+            center, limit = enemy.x, FIRE_X_RANGE
+            line = maze[index, :] if valid else None
+            length = width
+        if not valid or not 0 <= center < length:
+            return np.zeros(length, dtype=bool)
+        positions = np.arange(length)
+        # 包含玩家格和敌人中心投影格，任意一格被遮挡就不能开火。
+        prefix = np.concatenate(([0], np.cumsum(line != 0)))
+        blocked = prefix[np.maximum(positions, center) + 1] - prefix[np.minimum(positions, center)]
+        return (np.abs(positions - center) <= limit) & (blocked == 0)
+
+    def get_enemy_fire_region(self, enemy, maze=None):
+        """可开火区域与 fire_distance 共用射线判定，不依赖敌人视野评分。"""
+        if maze is None:
+            maze = self.get_maze()
+        height, width = maze.shape
+        region = np.zeros(maze.shape, dtype=bool)
+        for x in range(max(0, enemy.x1 + 1), min(width, enemy.x2)):
+            region[:, x] = self._fire_axis_mask(maze, enemy, x, 0)
+        horizontal_x = ~((enemy.x1 < np.arange(width)) & (np.arange(width) < enemy.x2))
+        for y in range(max(0, enemy.y1 + 1), min(height, enemy.y2)):
+            region[y, :] |= self._fire_axis_mask(maze, enemy, y, 1) & horizontal_x
+        return region
+
     def fire_distance(self, player, enemy):
         maze = self.get_maze()
-        if enemy.x2 > player.x > enemy.x1:
-            if abs(player.yn - enemy.yn) > 0.52:
-                return None, None
-            if self.is_collision_col(maze, enemy.y, player.y, player.x):
+        height, width = maze.shape
+        if not (0 <= player.x < width and 0 <= player.y < height):
+            return None, None
+        if enemy.x1 < player.x < enemy.x2:
+            if self._fire_axis_mask(maze, enemy, player.x, 0)[player.y]:
                 return enemy.y - player.y, 0
-        elif enemy.y2 > player.y > enemy.y1:
-            if abs(player.xn - enemy.xn) > 0.33:
-                return None, None
-            if self.is_collision_row(maze, enemy.x, player.x, player.y):
+        elif enemy.y1 < player.y < enemy.y2:
+            if self._fire_axis_mask(maze, enemy, player.y, 1)[player.x]:
                 return enemy.x - player.x, 1
         return None, None
 
@@ -505,9 +538,11 @@ class Map:
 
     def get_flee_maze(self, player, bullets, enemy_list):
         origin_maze = self.get_maze()
+        can_fire_region = np.zeros(origin_maze.shape, dtype=bool)
         for enemy in enemy_list:
             if enemy is not None:
                 enemy.prepare_navigation(origin_maze)
+                can_fire_region |= self.get_enemy_fire_region(enemy, origin_maze)
         moveable_maze = np.logical_or(origin_maze, self.map_template_without_exit)
         obstacle_distance_maze = self.get_distance_maze().copy()
         end_region = np.ones((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
@@ -583,6 +618,8 @@ class Map:
                         end_region[:enemy.y2, enemy.x1:enemy.x2] = 0
 
         end_region[end_region == 1] = 0
+        # 视野只负责评分，不能把未对齐、超射程或被遮挡的位置作为射击终点。
+        end_region[~can_fire_region] = 0
         distance_array = np.abs(player.x - np.arange(MAZE_WIDTH)) + np.abs(
             player.y - np.arange(MAZE_HEIGHT)[:, np.newaxis])
         decay_array = MAZE_HEIGHT / (distance_array + MAZE_HEIGHT)

@@ -34,16 +34,16 @@ class CollisionTests(unittest.TestCase):
         self.game_map.get_maze()[99, 99] = True
         self.assertFalse(self.game_map.is_move_collision(self.player, 0))
 
-    def test_thin_wall_and_diagonal_corner(self):
+    def test_thin_wall_and_diagonal_without_side_checks(self):
         self.game_map.get_maze()[100, 102] = True
         self.assertTrue(self.game_map.is_move_collision(self.player, 1))
         self.assertFalse(self.game_map.is_move_collision(self.player, 3))
         self.game_map.get_maze()[100, 101] = True
         self.assertTrue(self.game_map.is_move_collision(self.player, 1))
-        self.assertTrue(self.game_map.is_move_collision(self.player, 5))
+        self.assertFalse(self.game_map.is_move_collision(self.player, 5))
         self.game_map.get_maze()[100, 101] = False
         self.game_map.get_maze()[101, 100] = True
-        self.assertTrue(self.game_map.is_move_collision(self.player, 5))
+        self.assertFalse(self.game_map.is_move_collision(self.player, 5))
 
     def test_bounds_and_common_forbidden_region(self):
         for x, y, action in ((0, 100, 3), (319, 100, 1), (100, 0, 4), (100, 199, 2)):
@@ -66,7 +66,7 @@ class CollisionTests(unittest.TestCase):
             self.assertFalse(self.game_map.is_move_collision(self.player, direction))
         maze.fill(False)
         maze[102, 101] = True
-        self.assertTrue(self.game_map.is_move_collision(self.player, 5))
+        self.assertFalse(self.game_map.is_move_collision(self.player, 5))
 
 
 class RewardTests(unittest.TestCase):

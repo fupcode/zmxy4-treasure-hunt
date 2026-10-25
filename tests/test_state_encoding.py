@@ -29,8 +29,8 @@ class StateEncodingTests(unittest.TestCase):
 
     def test_start_area_normalization_and_empty_slots(self):
         state = self.make_env().state_encode()
-        self.assertEqual(state.shape, (81,))
-        self.assertEqual(OBSERVATION_DIM, 81)
+        self.assertEqual(state.shape, (86,))
+        self.assertEqual(OBSERVATION_DIM, 86)
         self.assertEqual(state.dtype, np.float32)
         np.testing.assert_allclose(state[:8], [0.25, 0.75, 0.5, 0.5, 1, 0, 1, 0])
         np.testing.assert_array_equal(state[8:], 0)
@@ -53,13 +53,14 @@ class StateEncodingTests(unittest.TestCase):
             enemy.xn, enemy.yn = i / 10, 0.5
             enemy.x1, enemy.y1 = enemy.x - 4, enemy.y - 3
             enemy.x2, enemy.y2 = enemy.x + 4, enemy.y + 3
+            enemy.fire_cool_down = 0.0
             env.enemy_list.append(enemy)
             env.bullets.append(Bullet((i / 10, 0, i % 4)))
         env.bullets.update([], env.player)
         original_enemies = list(env.enemy_list)
         original_bullets = list(env.bullets)
         state = env.state_encode()
-        enemies = state[ENEMY_SLICE].reshape(5, 7)
+        enemies = state[ENEMY_SLICE].reshape(5, 8)
         bullets = state[BULLET_SLICE].reshape(3, 7)
         np.testing.assert_allclose(enemies[:, 1], [0.1, 0.2, 0.3, 0.4, 0.5])
         np.testing.assert_allclose(bullets[:, 5], [0.1, 0.2, 0.3])
@@ -87,13 +88,14 @@ class StateEncodingTests(unittest.TestCase):
         enemy = Enemy.__new__(Enemy)
         enemy.x, enemy.y, enemy.xn, enemy.yn = 0, 0, 0, 0
         enemy.x1 = enemy.y1 = enemy.x2 = enemy.y2 = 0
+        enemy.fire_cool_down = 0.0
         env.enemy_list.append(enemy)
         env.bullets.append(Bullet((0, 0, 0)))
         state = env.state_encode()
-        np.testing.assert_array_equal(state[17:24], [1, -0.25, -0.75, -0.25, -0.75, -0.25, -0.75])
-        np.testing.assert_array_equal(state[24:52], 0)
-        np.testing.assert_array_equal(state[52:59], [1, 1, 0, 0, 0, -0.25, -0.75])
-        np.testing.assert_array_equal(state[59:], 0)
+        np.testing.assert_array_equal(state[17:25], [1, -0.25, -0.75, -0.25, -0.75, -0.25, -0.75, 0])
+        np.testing.assert_array_equal(state[25:57], 0)
+        np.testing.assert_array_equal(state[57:64], [1, 1, 0, 0, 0, -0.25, -0.75])
+        np.testing.assert_array_equal(state[64:], 0)
 
     def test_actual_enemy_box_is_relative_to_player(self):
         env = self.make_env()
@@ -107,7 +109,7 @@ class StateEncodingTests(unittest.TestCase):
         ])
         self.assertLess(state[21], 0)
 
-    def test_collision_flags_have_exact_action_order_and_corner_rules(self):
+    def test_collision_flags_have_exact_action_order_without_side_checks(self):
         env = self.make_env(level=1, task=0)
         game_map = Map.__new__(Map)
         game_map.level = 1
@@ -118,7 +120,10 @@ class StateEncodingTests(unittest.TestCase):
         game_map.map_template_without_exit = np.zeros_like(maze)
         game_map.get_task = lambda: 0
         env.map = game_map
-        np.testing.assert_array_equal(env.state_encode()[COLLISION_SLICE], [1, 0, 0, 1, 1, 0, 1, 1])
+        np.testing.assert_array_equal(env.state_encode()[COLLISION_SLICE], [1, 0, 0, 1, 0, 0, 0, 0])
+        # 斜向路径上的中间格仍会触发碰撞。
+        maze[152, 82] = True
+        self.assertTrue(game_map.is_move_collision(env.player, 5))
 
     def test_entity_features_are_invariant_under_joint_translation(self):
         env = self.make_env()
@@ -131,7 +136,7 @@ class StateEncodingTests(unittest.TestCase):
         env.enemy_list.append(Enemy(DetectionResult(1, [0.425, 0.525, 0.625, 0.725]), maze))
         env.bullets.clear()
         env.bullets.append(Bullet((0.525, 0.725, 0)))
-        np.testing.assert_allclose(env.state_encode()[17:73], before[17:73], atol=1e-7)
+        np.testing.assert_allclose(env.state_encode()[17:78], before[17:78], atol=1e-7)
 
     def test_terminal_update_skips_scene_processing(self):
         for status in (1, -2):

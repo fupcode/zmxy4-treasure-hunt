@@ -3,6 +3,7 @@ from collections import deque
 import heapq
 import time
 import math
+from scipy.ndimage import distance_transform_cdt
 
 
 def timeit(func):
@@ -102,63 +103,88 @@ def find_nearest_passable_point(maze, start):
     return start  # 如果没有找到，返回原点（极端情况下）
 
 
-def find_nearest_passable_path(maze, start, flee_region, stride=5, distance_maze=None, hate_factor=1, last_move_end=None):
-    heuristic = lambda x, y: 0
-    if last_move_end is not None:
-        if flee_region[last_move_end[1], last_move_end[0]] == 0:
-            # 启发函数
-            heuristic = lambda x, y: abs(x - last_move_end[0]) + abs(y - last_move_end[1])
+def _pixel_region_path(maze, start, targets, distance_maze, hate_factor,
+                       danger=None, max_time=0.05, preferred_end=None):
+    """逐像素 A*，避免跨过细目标和薄墙；碰撞范围由已扩张的地图决定。
 
-    # 迷宫的尺寸
+    max_time 是找到首条路径后的择优预算；预算耗尽时仍先找到可达目标，
+    防止较远的窄目标因超时而始终返回空路径。无法完全脱险时返回风险更低的位置。
+    """
     rows, cols = maze.shape
-
-    # 八方向移动
-    directions = [
-        (0, stride), (stride, 0), (0, -stride), (-stride, 0),  # 上下左右
-        (stride, stride), (stride, -stride), (-stride, stride), (-stride, -stride)  # 四个对角线
-    ]
-
-    # 计算每个点到障碍物的距离图
+    targets = np.asarray(targets).copy()
+    targets[maze != 0] = 0
+    if not np.any(targets):
+        return []
+    goal_distance = distance_transform_cdt(targets == 0, metric="chessboard")
     if distance_maze is None:
-        distance_from_obstacle = calculate_distance_from_obstacles(maze)
-    else:
-        distance_from_obstacle = distance_maze
+        distance_maze = calculate_distance_from_obstacles(maze)
+    min_step_cost = 1 + hate_factor / (np.max(distance_maze) + 1)
+    started = time.perf_counter()
+    costs = {start: 0.0}
+    parents = {}
+    remaining = float(goal_distance[start[1], start[0]])
+    queue = [(remaining * min_step_cost, remaining, 0.0, start)]
+    best = None
+    best_value = -np.inf
+    safer = start
+    directions = ((0, 1), (1, 0), (0, -1), (-1, 0),
+                  (1, 1), (1, -1), (-1, 1), (-1, -1))
 
-    # 优先队列初始化
-    open_set = []
-    heapq.heappush(open_set, (0, start))
+    def path_to(point):
+        path = []
+        while point in parents:
+            path.append(point)
+            point = parents[point]
+        return path[::-1]
 
-    # 路径跟踪字典
-    came_from = {}
-    cost_so_far = {start: 0}
-
-    while open_set:
-        _, current = heapq.heappop(open_set)
+    while queue:
+        _, _, cost, current = heapq.heappop(queue)
+        if cost != costs[current]:
+            continue
         cx, cy = current
+        if danger is not None and danger[cy, cx] < danger[safer[1], safer[0]]:
+            safer = current
+        value = targets[cy, cx]
+        if value > 0:
+            if danger is not None:
+                return path_to(current)
+            if value > best_value:
+                best, best_value = current, value
+            if value > 0.8 or time.perf_counter() - started >= max_time:
+                return path_to(best)
+            # 允许穿过低分候选区域，继续寻找更合适的射击位置。
+        if best is not None and time.perf_counter() - started >= max_time:
+            return path_to(best)
+        for dx, dy in directions:
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < cols and 0 <= ny < rows) or maze[ny, nx]:
+                continue
+            step_cost = 1 + hate_factor / (distance_maze[ny, nx] + 1)
+            if danger is not None:
+                step_cost += danger[ny, nx]
+            new_cost = cost + step_cost
+            neighbor = (nx, ny)
+            if new_cost < costs.get(neighbor, np.inf):
+                costs[neighbor] = new_cost
+                parents[neighbor] = current
+                # 旧终点仅用于相同代价时择优，不能盖过本次实际危险和距离。
+                preference = 0.0
+                if preferred_end is not None:
+                    preference = 1e-6 * (abs(nx - preferred_end[0]) + abs(ny - preferred_end[1]))
+                remaining = float(goal_distance[ny, nx])
+                priority = new_cost + remaining * min_step_cost + preference
+                # 浮点累加误差不应打破等价路径的距离择优，导致开阔地大面积扩展。
+                heapq.heappush(queue, (round(priority, 9), remaining, new_cost, neighbor))
+    if best is not None:
+        return path_to(best)
+    return path_to(safer) if danger is not None else []
 
-        # 判断是否进入终点附近的步幅半宽度范围
-        if flee_region[cy, cx] == 0:
-            path = []
-            while current in came_from:
-                path.append(current)
-                current = came_from[current]
-            path.reverse()
-            return path
 
-        # 八向扩展
-        for dc, dr in directions:
-            nx, ny = cx + dc, cy + dr
-
-            if 0 <= ny < rows and 0 <= nx < cols and maze[ny, nx] == 0:
-                new_cost = cost_so_far[current] + flee_region[ny, nx] + 1 / (distance_from_obstacle[ny, nx] + 1) * hate_factor
-
-                if (nx, ny) not in cost_so_far or new_cost < cost_so_far[(nx, ny)]:
-                    cost_so_far[(nx, ny)] = new_cost
-                    priority = new_cost + heuristic(nx, ny)
-                    heapq.heappush(open_set, (priority, (nx, ny)))
-                    came_from[(nx, ny)] = current
-
-    return []
+def find_nearest_passable_path(maze, start, flee_region, distance_maze=None, hate_factor=1, last_move_end=None):
+    """寻找脱险路径；stride 保留接口兼容，搜索精度固定为一个逻辑像素。"""
+    return _pixel_region_path(maze, start, (flee_region == 0).astype(np.float32),
+                              distance_maze, hate_factor, danger=flee_region,
+                              preferred_end=last_move_end)
 
 
 def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, hate_factor=1):
@@ -264,72 +290,7 @@ def find_nearest_path_to_region(maze, start, flee_region, end_region, stride: in
     return []
 
 
-def find_best_path_to_region(maze, start, end_region, stride: int = 10, distance_maze=None, hate_factor=1, max_time=0.05):
-    # 迷宫的尺寸
-    start_time = time.time()
-    rows, cols = maze.shape
-    paths = []
-
-    # 八方向移动
-    directions = [
-        (0, stride), (stride, 0), (0, -stride), (-stride, 0),  # 上下左右
-        (stride, stride), (stride, -stride), (-stride, stride), (-stride, -stride)  # 四个对角线
-    ]
-
-    # 计算每个点到障碍物的距离图
-    if distance_maze is None:
-        distance_from_obstacle = calculate_distance_from_obstacles(maze)
-    else:
-        distance_from_obstacle = distance_maze
-
-    # 优先队列初始化
-    open_set = []
-    heapq.heappush(open_set, (0, start))
-
-    # 路径跟踪字典
-    came_from = {}
-    cost_so_far = {start: 0}
-
-    while open_set:
-        _, current = heapq.heappop(open_set)
-        cx, cy = current
-
-        # 判断是否进入终点附近的步幅半宽度范围
-        value = end_region[cy, cx]
-        if value != 0:
-            # 回溯记录当前路径
-            path = []
-            temp = current
-            while temp in came_from:
-                path.append(temp)
-                temp = came_from[temp]
-            path.reverse()
-            paths.append((value, path))
-            if value > 0.8:
-                return path
-            if time.time() - start_time > max_time:
-                break
-
-            continue
-
-        # 八向扩展
-        for dc, dr in directions:
-            nx, ny = cx + dc, cy + dr
-
-            if 0 <= ny < rows and 0 <= nx < cols and maze[ny, nx] == 0:
-                new_cost = cost_so_far[current] + 1 + 1 / (distance_from_obstacle[ny, nx] + 1) * hate_factor
-
-                if (nx, ny) not in cost_so_far or new_cost < cost_so_far[(nx, ny)]:
-                    cost_so_far[(nx, ny)] = new_cost
-                    priority = new_cost
-                    heapq.heappush(open_set, (priority, (nx, ny)))
-                    came_from[(nx, ny)] = current
-
-    best_path = []
-    best_value = -np.inf
-    for value, path in paths:
-        if value > best_value:
-            best_value = value
-            best_path = path
-
-    return best_path
+def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1, max_time=0.05):
+    """按目标评分择优；逐像素搜索，不再受 stride 网格对齐限制。"""
+    return _pixel_region_path(maze, start, end_region, distance_maze,
+                              hate_factor, max_time=max_time)

@@ -2,7 +2,7 @@
 
 训练入口为 `zaomeng_hanghai.train.train_ppo`，算法、采样和 checkpoint 代码均在
 `src/zaomeng_hanghai/train/`。推理继续使用 `policy.py` 和 `run_policy.py`。
-当前观测为 [v2 的 81 维编码](state-encoding.md)，旧 60 维模型不能直接初始化或续训。
+当前观测为 [v2 的 86 维编码](state-encoding.md)，旧 60 维模型不能直接初始化或续训。
 
 运行在线训练会操作游戏窗口。先将游戏停在航海起始界面，确保窗口无遮挡。
 当前文档中的 `你的运行目录` 需要替换为实际目录名。

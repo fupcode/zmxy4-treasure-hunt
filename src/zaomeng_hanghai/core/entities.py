@@ -1,11 +1,12 @@
 """玩家、敌人、子弹和掉落物，以及跨帧跟踪集合。"""
 
 from collections import UserList
+import time
 
 import numpy as np
 
 from . import maze_utils
-from .observation import BULLET_FIELDS, ENEMY_FIELDS, MAX_BULLETS, MAX_ENEMIES
+from .observation import BULLET_FIELDS, ENEMY_FIELDS, ENEMY_FIRE_COOLDOWN_SCALE, MAX_BULLETS, MAX_ENEMIES
 from .constants import (
     EXIT_DOWN,
     EXIT_LEFT,
@@ -148,8 +149,11 @@ class Enemy:
         if enemy_box.xywhn[2] > 0.07:
             # boss
             horizontal_reduction = 0.006
+            self.cool_down_time = 1
+
         else:
             horizontal_reduction = 0.002
+            self.cool_down_time = 3
 
         self.x1n += horizontal_reduction
         self.x2n -= horizontal_reduction
@@ -160,9 +164,8 @@ class Enemy:
         self.y2 = int(round(self.y2n * MAZE_HEIGHT))
 
         self.disappear_count = 0
-        self.fired = False
-        self.fired_time = None
-        self.cool_down_time = None
+        self.fire_cool_down = 0.0
+        self.fire_ready_time = None
 
         # 状态观测不依赖这些数组，仅在自动战斗寻路时按需计算。
         self.distance_array = None
@@ -175,9 +178,8 @@ class Enemy:
             self.vision = self.calculate_vision(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
 
     def inherit(self, enemy):
-        self.fired = enemy.fired
-        self.fired_time = enemy.fired_time
-        self.cool_down_time = enemy.cool_down_time
+        self.fire_cool_down = enemy.fire_cool_down
+        self.fire_ready_time = enemy.fire_ready_time
 
     def get_distance_array(self):
         distance_array = np.abs(self.x - np.arange(MAZE_WIDTH)) + np.abs(
@@ -244,15 +246,20 @@ class Enemy:
 
         return vision_array
 
-    def set_fired(self, current_time, cool_down_time):
-        self.fired = True
-        self.fired_time = current_time
-        self.cool_down_time = cool_down_time
+    def set_fired(self, current_time):
+        """由新子弹推断开火，重置该敌人的剩余冷却秒数。"""
+        self.fire_ready_time = current_time + self.cool_down_time
+        self.update_fire_cool_down(current_time)
+
+    def update_fire_cool_down(self, current_time):
+        self.fire_cool_down = (
+            0.0 if self.fire_ready_time is None
+            else max(0.0, self.fire_ready_time - current_time)
+        )
 
     def is_safe(self, current_time):
-        if self.fired:
-            return current_time - self.fired_time < self.cool_down_time
-        return False
+        self.update_fire_cool_down(current_time)
+        return self.fire_cool_down > 0
 
     def state_encode(self, player):
         """位置和实际整数碰撞框相对玩家的归一化偏移。"""
@@ -260,6 +267,7 @@ class Enemy:
             1, self.xn - player.xn, self.yn - player.yn,
             self.x1 / MAZE_WIDTH - player.xn, self.y1 / MAZE_HEIGHT - player.yn,
             self.x2 / MAZE_WIDTH - player.xn, self.y2 / MAZE_HEIGHT - player.yn,
+            np.clip(self.fire_cool_down / ENEMY_FIRE_COOLDOWN_SCALE, 0, 1),
         ], dtype=np.float32)
 
 
@@ -272,7 +280,9 @@ class EnemyList(UserList[Enemy]):
         self.max_disappear_count = max_disappear_count
         self.threshold_distance = threshold_distance
 
-    def update(self, enemy_box_list, maze) -> None:
+    def update(self, enemy_box_list, maze, current_time=None) -> None:
+        if current_time is None:
+            current_time = time.time()
         old_enemies = list(self.data)
         new_enemies = [Enemy(box, maze) for box in enemy_box_list]
 
@@ -323,13 +333,16 @@ class EnemyList(UserList[Enemy]):
                 updated_data.append(new_enemy)
 
         self.data = updated_data
+        # 匹配、短暂漏检和新出现的敌人都在本帧刷新冷却。
+        for enemy in self.data:
+            enemy.update_fire_cool_down(current_time)
 
     def sort_by(self, player):
         # 根据与玩家的曼哈顿距离排序
         self.data.sort(key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y))
 
     def state_encode(self, player):
-        """最近五个敌人，每个 7 维相对坐标/碰撞框；不足补零。"""
+        """最近五个敌人，每个 8 维相对坐标/碰撞框/冷却；不足补零。"""
         state = np.zeros((self.max_enemies, Enemy.state_dim), dtype=np.float32)
         enemies = sorted(
             self.data,

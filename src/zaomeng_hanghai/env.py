@@ -216,7 +216,8 @@ class Env:
         self.bullets.update(self.game_window.bullet_list_normal, self.player)
         # 子弹列表已经在 update 内部按距离排序
 
-        self.enemy_list.update(self.game_window.enemy_boxes, maze)
+        current_time = time.time()
+        self.enemy_list.update(self.game_window.enemy_boxes, maze, current_time=current_time)
         self.enemy_list.sort_by(self.player)
 
         self.action_manager.update_pao(self.game_window.items["pao"])
@@ -224,8 +225,6 @@ class Env:
         self.falling_items.update(self.game_window.falling_items_normal)
         self.falling_items.sort_by(self.player)
 
-        current_time = time.time()
-        cool_down = 3
         for bullet in self.bullets.new_bullets:
             min_distance = np.inf
             fired_enemy = None
@@ -247,7 +246,7 @@ class Env:
                     min_distance = distance
                     fired_enemy = enemy
             if fired_enemy is not None:
-                fired_enemy.set_fired(current_time, cool_down)
+                fired_enemy.set_fired(current_time)
 
         # 使动作管理器同步时间
         self.action_manager.set_action_start_time()
@@ -458,11 +457,11 @@ class Env:
         return status_code
 
     def state_encode(self):
-        """返回 v2 的 81 维 float32 观测；终局状态码单独返回。
+        """返回 v2 的 86 维 float32 观测；终局状态码单独返回。
 
         [0:7] 角色，[7] 关卡进度，[8:17] 类型 one-hot，
-        [17:52] 五个敌人的相对位置/碰撞框，[52:73] 三颗危险弹幕，
-        [73:81] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
+        [17:57] 五个敌人的相对位置/碰撞框/冷却，[57:78] 三颗危险弹幕，
+        [78:86] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
         """
         state = np.zeros(self.state_space, dtype=np.float32)
         state[0] = self.player.xn
@@ -550,7 +549,7 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env: Env, target=100):
+def auto_loop(env: Env, target=3):
     # 传入已经初始化好窗口的Env实例
     success_count = 0
 

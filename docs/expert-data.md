@@ -1,8 +1,8 @@
 # 专家数据位置与格式
 
-当前环境与训练已升级为 [状态编码 v2（81 维）](state-encoding.md)。
-新数据必须使用 `schema_version=2`、`observation_schema_version=2`、`observation_dim=81`，
-NPZ 的 `obs` 为 `(N,81)`；其他字段结构沿用本页说明。
+当前环境与训练已升级为 [状态编码 v2（86 维）](state-encoding.md)。
+新数据必须使用 `schema_version=2`、`observation_schema_version=2`、`observation_dim=86`，
+NPZ 的 `obs` 为 `(N,86)`；其他字段结构沿用本页说明。
 本页下方的 60 维布局与旧采集目录说明保留用于解释历史 v1 数据，
 当前 BC 加载器会拒绝这些旧记录，不能通过修改元数据直接转换。
 
@@ -136,7 +136,7 @@ D:\project\personal\zaomeng\zaomeng-hanghai\data\expert\20261024_160000_ab12cd34
 新采集逻辑应将引擎故障作为丢弃局处理。BC 读取器仍会跳过 `status=-4` 的局。
 
 历史 `config.json` 使用 `schema_version=1`，声明 60 维观测、动作和阶段映射，以及采集过滤规则。
-当前 v2 元数据及 81 维字段布局见 [状态编码说明](state-encoding.md)。
+当前 v2 元数据及 86 维字段布局见 [状态编码说明](state-encoding.md)。
 
 `progress.json` 包含：
 

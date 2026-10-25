@@ -100,9 +100,19 @@ class NextLevelTests(unittest.TestCase):
             finish.assert_called_once_with()
         self.assertEqual(state.shape, (OBSERVATION_DIM,))
         self.assertEqual(state[17], 1)
-        self.assertEqual(state[52], 1)
+        self.assertEqual(state[57], 1)
         self.assertIsNone(env.enemy_list[0].vision)
         self.assertIsNone(env.enemy_list[0].distance_array)
+        # 左行新子弹归属右侧敌人；下一帧同一颗子弹不能反复重置冷却。
+        env.game_window.bullet_list_normal = [(0.60, 0.64, 2)]
+        with patch("zaomeng_hanghai.env.time.time", return_value=100):
+            self.assertEqual(env.update(), 0)
+        self.assertEqual(env.enemy_list[0].fire_cool_down, 3)
+        self.assertEqual(env.state_encode()[24], 1)
+        with patch("zaomeng_hanghai.env.time.time", return_value=101):
+            self.assertEqual(env.update(), 0)
+        self.assertEqual(env.enemy_list[0].fire_cool_down, 2)
+        self.assertAlmostEqual(env.state_encode()[24], 2 / 3)
 
     def test_auto_path_builds_navigation_before_planning(self):
         env = Env.__new__(Env)

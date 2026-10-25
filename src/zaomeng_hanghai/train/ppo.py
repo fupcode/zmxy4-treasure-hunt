@@ -9,6 +9,7 @@ from torch import nn
 
 from ..policy import ACTION_NAMES, OBSERVATION_DIM, ActorCritic
 from ..core.observation import OBSERVATION_SCHEMA_VERSION, validate_observation_schema
+from ..core.file_io import replace_with_retry
 
 
 @dataclass
@@ -159,7 +160,7 @@ def save_checkpoint(path, trainer: PPOTrainer, state: TrainingState, env_config)
     }
     temporary = path.with_suffix(".tmp")
     torch.save(payload, temporary)
-    temporary.replace(path)
+    replace_with_retry(temporary, path)
 
 
 def restore_checkpoint(path, device="cpu", overrides=None):

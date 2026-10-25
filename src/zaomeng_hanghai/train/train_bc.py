@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from .expert_data import concatenate, load_episodes, split_episodes
 from zaomeng_hanghai.policy import ACTION_NAMES, ActorCritic
 from ..core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
+from ..core.file_io import replace_with_retry
 
 
 def make_loader(episodes, batch_size, shuffle, seed):
@@ -67,7 +68,7 @@ def save_checkpoint(path, model, optimizer, epoch, metrics):
     }
     temporary = path.with_suffix(".tmp")
     torch.save(checkpoint, temporary)
-    temporary.replace(path)
+    replace_with_retry(temporary, path)
 
 
 def main(argv=None):

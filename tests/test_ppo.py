@@ -140,6 +140,28 @@ class PPOTests(unittest.TestCase):
         with redirect_stdout(StringIO()):
             self.assertFalse(RewardChangeLogger(TrainingState(last_logged_reward=0), path).log(1, 0, {}))
 
+    def test_reward_log_ignores_combat_time_changes_across_sessions(self):
+        path = self.root / "rewards.jsonl"
+        logger = RewardChangeLogger(TrainingState(), path)
+        with redirect_stdout(StringIO()):
+            self.assertTrue(logger.log(-0.05783333, 6, {
+                "reward_terms": {"fire": -0.05, "combat_time": -0.00783333},
+            }))
+            self.assertFalse(logger.log(-0.0604167, 8, {
+                "reward_terms": {"fire": -0.05, "combat_time": -0.0104167},
+            }))
+            resumed = RewardChangeLogger(TrainingState(), path)
+            self.assertFalse(resumed.log(-0.062, 0, {
+                "reward_terms": {"fire": -0.05, "combat_time": -0.012},
+            }))
+            self.assertTrue(resumed.log(-0.012, 0, {
+                "reward_terms": {"fire": 0.0, "combat_time": -0.012},
+            }))
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["reward"], -0.05783333)
+        self.assertEqual(records[0]["reward_terms"]["combat_time"], -0.00783333)
+
     def test_collection_discards_engine_step_and_resumes_for_additional_steps(self):
         trainer = self.trainer(rollout_steps=8, update_epochs=1)
         state = TrainingState()

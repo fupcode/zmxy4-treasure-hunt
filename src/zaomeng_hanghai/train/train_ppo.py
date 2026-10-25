@@ -5,6 +5,7 @@ from collections import deque
 from dataclasses import asdict, fields
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 import random
 import uuid
@@ -23,7 +24,7 @@ def append_json(path, record):
 
 
 class RewardChangeLogger:
-    """只在有效步骤的总奖励与上一次有效步骤不同的时候打印、写入日志。"""
+    """忽略 combat_time 分项，仅在其余奖励变化时打印、写入完整奖励日志。"""
 
     def __init__(self, state, path):
         self.state = state
@@ -33,13 +34,21 @@ class RewardChangeLogger:
             with path.open(encoding="utf-8") as file:
                 last_line = deque((line for line in file if line.strip()), maxlen=1)
             if last_line:
-                self.state.last_logged_reward = float(json.loads(last_line[0])["reward"])
+                record = json.loads(last_line[0])
+                self.state.last_logged_reward = self._comparison_reward(record["reward"], record)
+
+    @staticmethod
+    def _comparison_reward(reward, info):
+        return float(reward) - float(info.get("reward_terms", {}).get("combat_time", 0.0))
 
     def log(self, reward, action, info):
         reward = float(reward)
-        if self.state.last_logged_reward == reward:
+        comparison_reward = self._comparison_reward(reward, info)
+        if self.state.last_logged_reward is not None and math.isclose(
+            self.state.last_logged_reward, comparison_reward, rel_tol=0.0, abs_tol=1e-12
+        ):
             return False
-        self.state.last_logged_reward = reward
+        self.state.last_logged_reward = comparison_reward
         terms = {key: value for key, value in info.get("reward_terms", {}).items() if value != 0}
         detail = " ".join(f"{key}={value:+.6g}" for key, value in terms.items())
         print(f"[Reward] step={self.state.env_steps} episode={self.state.episodes} "

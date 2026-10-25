@@ -198,13 +198,14 @@ class Map:
         map_template[exit_up:exit_down, :] = 0
         map_template[:, exit_left:exit_right] = 0
 
-        left_top = (int(round(0.22 * MAZE_WIDTH)), int(round(0.18 * MAZE_HEIGHT)))
-        right_top1 = (int(round(0.68 * MAZE_WIDTH)), int(round(0.19 * MAZE_HEIGHT)))
-        right_top2 = (int(round(0.86 * MAZE_WIDTH)), int(round(0.25 * MAZE_HEIGHT)))
-
-        map_template_without_exit[:left_top[1], :left_top[0]] = 1
-        map_template_without_exit[:right_top1[1], right_top1[0]:] = 1
-        map_template_without_exit[:right_top2[1], right_top2[0]:] = 1
+        # 旧版识别精度不高设置的禁区
+        # left_top = (int(round(0.22 * MAZE_WIDTH)), int(round(0.18 * MAZE_HEIGHT)))
+        # right_top1 = (int(round(0.68 * MAZE_WIDTH)), int(round(0.19 * MAZE_HEIGHT)))
+        # right_top2 = (int(round(0.86 * MAZE_WIDTH)), int(round(0.25 * MAZE_HEIGHT)))
+        #
+        # map_template_without_exit[:left_top[1], :left_top[0]] = 1
+        # map_template_without_exit[:right_top1[1], right_top1[0]:] = 1
+        # map_template_without_exit[:right_top2[1], right_top2[0]:] = 1
 
         return map_template, map_template_without_exit
 

@@ -8,6 +8,7 @@ import torch
 from torch import nn
 
 from ..policy import ACTION_NAMES, OBSERVATION_DIM, ActorCritic
+from ..core.observation import OBSERVATION_SCHEMA_VERSION, validate_observation_schema
 
 
 @dataclass
@@ -77,7 +78,7 @@ class PPOTrainer:
         config.validate()
         if (model.model_config["observation_dim"] != OBSERVATION_DIM
                 or model.model_config["action_dim"] != len(ACTION_NAMES)):
-            raise ValueError("PPO expects the environment's 60 observations and 9 actions")
+            raise ValueError(f"PPO expects the environment's {OBSERVATION_DIM} observations and 9 actions")
         self.model = model
         self.config = config
         self.device = next(model.parameters()).device
@@ -145,6 +146,7 @@ def save_checkpoint(path, trainer: PPOTrainer, state: TrainingState, env_config)
     numpy_state = np.random.get_state()
     payload = {
         "format_version": 1, "training_stage": "ppo", "critic_trained": state.updates > 0,
+        "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
         "action_names": list(ACTION_NAMES), "model_config": trainer.model.model_config,
         "model_state_dict": trainer.model.state_dict(),
         "optimizer_state_dict": trainer.optimizer.state_dict(),
@@ -165,6 +167,8 @@ def restore_checkpoint(path, device="cpu", overrides=None):
     if (payload.get("format_version") != 1 or payload.get("training_stage") != "ppo"
             or payload.get("action_names") != list(ACTION_NAMES)):
         raise ValueError("--resume requires a PPO checkpoint; use --init for BC weights")
+    validate_observation_schema(payload.get("observation_schema_version"),
+                                payload["model_config"]["observation_dim"])
     config = PPOConfig(**{**payload["ppo_config"], **(overrides or {})})
     model = ActorCritic(**payload["model_config"]).to(device)
     model.load_state_dict(payload["model_state_dict"])

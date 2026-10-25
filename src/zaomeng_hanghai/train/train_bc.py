@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .expert_data import concatenate, load_episodes, split_episodes
 from zaomeng_hanghai.policy import ACTION_NAMES, ActorCritic
+from ..core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
 
 
 def make_loader(episodes, batch_size, shuffle, seed):
@@ -59,6 +60,7 @@ def run_epoch(model, loader, device, optimizer=None):
 def save_checkpoint(path, model, optimizer, epoch, metrics):
     checkpoint = {
         "format_version": 1, "training_stage": "behavioral_cloning", "critic_trained": False,
+        "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
         "action_names": list(ACTION_NAMES), "model_config": model.model_config,
         "model_state_dict": model.state_dict(), "optimizer_state_dict": optimizer.state_dict(),
         "epoch": epoch, "metrics": metrics,
@@ -97,6 +99,9 @@ def main(argv=None):
     output.mkdir(parents=True, exist_ok=False)
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
     config.update(device=str(device), output=str(output.resolve()))
+    config.update(observation_schema_version=OBSERVATION_SCHEMA_VERSION, model_config={
+        "observation_dim": OBSERVATION_DIM, "hidden_sizes": args.hidden_sizes, "action_dim": len(ACTION_NAMES)
+    })
     (output / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     (output / "split.json").write_text(json.dumps({
         "train": [str(episode.path) for episode in train],

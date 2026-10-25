@@ -6,9 +6,9 @@ import numpy as np
 import torch
 from torch import nn
 from torch.distributions import Categorical
+from .core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION, validate_observation_schema
 
 
-OBSERVATION_DIM = 60
 ACTION_NAMES = (
     "stop", "Right", "Down", "Left", "Up", "DownRight", "DownLeft", "UpRight", "UpLeft"
 )
@@ -68,6 +68,8 @@ def load_policy(path: str | Path, device="cpu") -> ActorCritic:
     checkpoint = torch.load(path, map_location=device, weights_only=True)
     if checkpoint.get("format_version") != 1 or checkpoint.get("action_names") != list(ACTION_NAMES):
         raise ValueError("Unsupported checkpoint format or action mapping")
+    validate_observation_schema(checkpoint.get("observation_schema_version"),
+                                checkpoint["model_config"]["observation_dim"])
     model = ActorCritic(**checkpoint["model_config"]).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()

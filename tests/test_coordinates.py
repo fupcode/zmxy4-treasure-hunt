@@ -16,7 +16,7 @@ class CoordinateTests(unittest.TestCase):
         maze = np.zeros((200, 320), dtype=bool)
         box = DetectionResult(1, [10.75 / 320, 20.75 / 200, 30.75 / 320, 40.75 / 200])
         enemy = Enemy(box, maze)
-        self.assertEqual((enemy.x1, enemy.y1, enemy.x2, enemy.y2), (11, 31, 31, 41))
+        self.assertEqual((enemy.x1, enemy.y1, enemy.x2, enemy.y2), (11, 31, 30, 41))
         self.assertEqual((enemy.x, enemy.y), (21, 34))
         player = Player(box, maze)
         self.assertEqual((player.x, player.y), (21, 35))
@@ -33,7 +33,7 @@ class CoordinateTests(unittest.TestCase):
         for entity in (Enemy(box, maze), Player(box, maze), Bullet((1, 1, 0)), FallingItem((1, 1))):
             self.assertEqual((entity.x, entity.y), (319, 199))
         enemy = Enemy(box, maze)
-        self.assertEqual((enemy.x2, enemy.y2), (320, 200))
+        self.assertEqual((enemy.x2, enemy.y2), (319, 200))  # 当前敌人框有水平收缩。
         self.assertEqual(find_nearest_passable_point(maze, (320, 200)), (319, 199))
         self.assertEqual(find_nearest_passable_point(maze, (-1, -1)), (0, 0))
 

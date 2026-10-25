@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from ..policy import ActorCritic, load_policy
+from ..core.observation import OBSERVATION_SCHEMA_VERSION
 from .ppo import PPOConfig, PPOTrainer, TrainingState, Transition, restore_checkpoint, save_checkpoint
 
 
@@ -214,6 +215,7 @@ def prepare_training(args):
     existing_resume = args.resume is not None and output.resolve() == args.resume.resolve().parent
     output.mkdir(parents=True, exist_ok=existing_resume)
     configuration = {
+        "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
         "ppo": asdict(trainer.config), "environment": env_config,
         "model": trainer.model.model_config, "device": str(trainer.device),
         "arguments": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},

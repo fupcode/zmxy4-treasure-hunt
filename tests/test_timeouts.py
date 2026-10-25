@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from zaomeng_hanghai.env import Env
+from zaomeng_hanghai.core.observation import OBSERVATION_DIM
 
 
 class TimeoutTests(unittest.TestCase):
@@ -151,7 +152,7 @@ class TimeoutTests(unittest.TestCase):
         env.update = Mock(return_value=-4)
         observation, status = env.reset()
         self.assertEqual(status, -4)
-        self.assertEqual(observation.shape, (60,))
+        self.assertEqual(observation.shape, (OBSERVATION_DIM,))
         self.assertTrue(env._episode_done)
         self.assertEqual(env.combat_elapsed_seconds, 0)
         self.assertEqual(env.last_reward, 0)

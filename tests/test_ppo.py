@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from zaomeng_hanghai.policy import ACTION_NAMES, ActorCritic, load_policy
+from zaomeng_hanghai.core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
 from zaomeng_hanghai.train.ppo import (
     PPOConfig, PPOTrainer, TrainingState, Transition, compute_gae, restore_checkpoint, save_checkpoint,
 )
@@ -27,7 +28,7 @@ class FakeEnv:
         self.index = 0
 
     def observation(self):
-        obs = np.zeros(60, dtype=np.float32)
+        obs = np.zeros(OBSERVATION_DIM, dtype=np.float32)
         obs[0] = self.index / 10
         return obs
 
@@ -63,7 +64,7 @@ class PPOTests(unittest.TestCase):
         return PPOTrainer(ActorCritic(hidden_sizes=(16,)), PPOConfig(**kwargs))
 
     def sample_bandit(self, trainer, count=256):
-        obs = torch.zeros(count, 60)
+        obs = torch.zeros(count, OBSERVATION_DIM)
         with torch.no_grad():
             actions, log_probs, values = trainer.model.act(obs)
         return [Transition(
@@ -86,10 +87,10 @@ class PPOTests(unittest.TestCase):
         samples = self.sample_bandit(trainer)
         before_critic = [parameter.clone() for parameter in trainer.model.critic.parameters()]
         with torch.no_grad():
-            before = trainer.model.actor(torch.zeros(60)).softmax(-1)[2].item()
+            before = trainer.model.actor(torch.zeros(OBSERVATION_DIM)).softmax(-1)[2].item()
         metrics = trainer.update(samples)
         with torch.no_grad():
-            after = trainer.model.actor(torch.zeros(60)).softmax(-1)[2].item()
+            after = trainer.model.actor(torch.zeros(OBSERVATION_DIM)).softmax(-1)[2].item()
         self.assertGreater(after, before)
         self.assertTrue(any(not torch.equal(old, new) for old, new in zip(before_critic, trainer.model.critic.parameters())))
         self.assertEqual(metrics["samples"], 256)
@@ -119,7 +120,7 @@ class PPOTests(unittest.TestCase):
         for left, right in zip(trainer.model.parameters(), restored.model.parameters()):
             torch.testing.assert_close(left, right, rtol=0, atol=0)
         policy = load_policy(path)
-        self.assertIn(policy.predict(np.zeros(60, dtype=np.float32)), range(9))
+        self.assertIn(policy.predict(np.zeros(OBSERVATION_DIM, dtype=np.float32)), range(9))
         override, _, _ = restore_checkpoint(path, overrides={"learning_rate": 0.002})
         self.assertEqual(override.optimizer.param_groups[0]["lr"], 0.002)
 
@@ -196,6 +197,7 @@ class PPOTests(unittest.TestCase):
         model = ActorCritic(hidden_sizes=(16,))
         torch.save({
             "format_version": 1, "training_stage": "behavioral_cloning",
+            "observation_schema_version": OBSERVATION_SCHEMA_VERSION,
             "action_names": list(ACTION_NAMES), "model_config": model.model_config,
             "model_state_dict": model.state_dict(),
         }, bc)
@@ -218,6 +220,20 @@ class PPOTests(unittest.TestCase):
             PPOConfig(gamma=2).validate()
         with self.assertRaises(ValueError):
             PPOConfig(learning_rate=float("nan")).validate()
+
+    def test_legacy_or_wrong_schema_checkpoint_is_rejected(self):
+        for dimension, version in ((60, None), (OBSERVATION_DIM, 1)):
+            model = ActorCritic(observation_dim=dimension, hidden_sizes=(16,))
+            path = self.root / "incompatible.pt"
+            torch.save({
+                "format_version": 1, "training_stage": "ppo", "action_names": list(ACTION_NAMES),
+                "model_config": model.model_config, "model_state_dict": model.state_dict(),
+                "observation_schema_version": version,
+            }, path)
+            with self.assertRaisesRegex(ValueError, "Incompatible observation schema"):
+                load_policy(path)
+            with self.assertRaisesRegex(ValueError, "Incompatible observation schema"):
+                restore_checkpoint(path)
 
 
 if __name__ == "__main__":

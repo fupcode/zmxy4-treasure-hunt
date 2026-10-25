@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from zaomeng_hanghai.policy import ACTION_NAMES, OBSERVATION_DIM
+from ..core.observation import OBSERVATION_SCHEMA_VERSION, validate_observation_schema
 
 
 @dataclass
@@ -25,8 +26,11 @@ def load_episodes(root: str | Path) -> list[ExpertEpisode]:
     seen = set()
     for manifest in manifests:
         config = json.loads((manifest.parent / "config.json").read_text(encoding="utf-8"))
-        if (config.get("schema_version") != 1
-                or config.get("observation_dim") != OBSERVATION_DIM
+        try:
+            validate_observation_schema(config.get("observation_schema_version"), config.get("observation_dim"))
+        except ValueError as error:
+            raise ValueError(f"{manifest.parent}: {error}") from error
+        if (config.get("schema_version") != OBSERVATION_SCHEMA_VERSION
                 or config.get("actions") != list(ACTION_NAMES)):
             raise ValueError(f"Unsupported expert schema: {manifest.parent}")
         for line_number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):

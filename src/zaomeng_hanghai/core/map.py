@@ -407,14 +407,14 @@ class Map:
         return up_pos if up_pos != -1 else up, down_pos if down_pos != -1 else down
 
     def is_move_collision(self, player, action):
-        """检查下一小步的整段路径及斜向夹角，不把静止动作当作左上。"""
+        """横纵各检查 3 个逻辑像素，斜向叠加两轴，逐格检查并禁止穿角。"""
         if not isinstance(action, (int, np.integer)) or not 0 <= action <= len(move_list):
             raise ValueError(f"Invalid action: {action}")
         if action == 0:
             return False
         dx, dy = move_list[action - 1]
-        dx *= int(round(0.012 * MAZE_WIDTH))
-        dy *= int(round(0.016 * MAZE_HEIGHT))
+        dx *= 3
+        dy *= 3
         maze = self.get_maze()
         height, width = maze.shape
 

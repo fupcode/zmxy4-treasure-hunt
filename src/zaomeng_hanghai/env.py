@@ -11,6 +11,9 @@ from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
 from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.entities import Bullets, EnemyList, FallingItems, Player
 from zaomeng_hanghai.core.map import Map
+from zaomeng_hanghai.core.observation import (
+    BULLET_SLICE, COLLISION_SLICE, ENEMY_SLICE, OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION,
+)
 from zaomeng_hanghai.core.rewards import RewardConfig, calculate_reward
 
 
@@ -58,8 +61,9 @@ class FrameRateCalculator:
 
 
 class Env:
-    # 角色 7 + 关卡进度 1 + 关卡类型 9 + 敌人 15 + 弹幕 28。
-    state_space = 17 + EnemyList.state_dim + Bullets.state_dim
+    # 角色/关卡 17 + 五个敌人 35 + 三颗子弹 21 + 碰撞方向 8。
+    state_space = OBSERVATION_DIM
+    state_schema_version = OBSERVATION_SCHEMA_VERSION
 
     def __init__(self, timeout=5, stay_timeout=30, render_enabled=False, reward_config=None, combat_timeout=120):
         if not np.isfinite(combat_timeout) or combat_timeout <= 0:
@@ -454,10 +458,11 @@ class Env:
         return status_code
 
     def state_encode(self):
-        """返回 60 维 float32 观测；成功/失败通过 status_code 单独返回。
+        """返回 v2 的 81 维 float32 观测；终局状态码单独返回。
 
         [0:7] 角色，[7] 关卡进度，[8:17] 类型 one-hot，
-        [17:32] 五个敌人，[32:60] 四颗危险弹幕。
+        [17:52] 五个敌人的相对位置/碰撞框，[52:73] 三颗危险弹幕，
+        [73:81] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
         """
         state = np.zeros(self.state_space, dtype=np.float32)
         state[0] = self.player.xn
@@ -477,9 +482,9 @@ class Env:
         else:
             raise ValueError(f"Invalid task type: {task}")
 
-        enemy_end = 17 + self.enemy_list.state_dim
-        state[17:enemy_end] = self.enemy_list.state_encode(self.player)
-        state[enemy_end:] = self.bullets.state_encode()
+        state[ENEMY_SLICE] = self.enemy_list.state_encode(self.player)
+        state[BULLET_SLICE] = self.bullets.state_encode(self.player)
+        state[COLLISION_SLICE] = [self.map.is_move_collision(self.player, action) for action in range(1, 9)]
 
         return state
 

@@ -10,6 +10,7 @@ import torch
 
 from zaomeng_hanghai.train.expert_data import load_episodes, split_episodes
 from zaomeng_hanghai.policy import ACTION_NAMES, ActorCritic, load_policy
+from zaomeng_hanghai.core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
 from zaomeng_hanghai.train.train_bc import main, run_epoch
 
 
@@ -25,13 +26,13 @@ class ImitationTests(unittest.TestCase):
         self.data = self.root / "data"
         self.data.mkdir()
         (self.data / "config.json").write_text(json.dumps({
-            "schema_version": 1, "observation_dim": 60, "actions": list(ACTION_NAMES)
+            "schema_version": OBSERVATION_SCHEMA_VERSION, "observation_schema_version": OBSERVATION_SCHEMA_VERSION, "observation_dim": OBSERVATION_DIM, "actions": list(ACTION_NAMES)
         }), encoding="utf-8")
         torch.set_num_threads(1)
         torch.manual_seed(7)
 
     def add_episode(self, index, kept=True, status=1, terminal_level=4, actions=None):
-        observations = np.zeros((12, 60), dtype=np.float32)
+        observations = np.zeros((12, OBSERVATION_DIM), dtype=np.float32)
         observations[:, 0] = index / 10
         actions = np.full(12, 3, dtype=np.int64) if actions is None else actions
         name = f"episode_{index:04d}.npz"
@@ -50,7 +51,7 @@ class ImitationTests(unittest.TestCase):
         self.add_episode(7, status=-2, terminal_level=1)
         self.add_episode(8, status=-4)
         # 不在 manifest 的 NPZ 绝不加载。
-        np.savez(self.data / "orphan.npz", obs=np.zeros((1, 60)), acts=[0])
+        np.savez(self.data / "orphan.npz", obs=np.zeros((1, OBSERVATION_DIM)), acts=[0])
         episodes = load_episodes(self.data)
         self.assertEqual(len(episodes), 5)
         train, validation = split_episodes(episodes, 0.2, seed=8)
@@ -62,19 +63,19 @@ class ImitationTests(unittest.TestCase):
         self.add_episode(1, actions=np.full(12, 9, dtype=np.int64))
         with self.assertRaisesRegex(ValueError, "0..8"):
             load_episodes(self.data)
-        np.savez(self.data / "episode_0001.npz", obs=np.zeros((12, 60)), acts=np.zeros(12, dtype=np.int64))
+        np.savez(self.data / "episode_0001.npz", obs=np.zeros((12, OBSERVATION_DIM)), acts=np.zeros(12, dtype=np.int64))
         episodes = load_episodes(self.data)
         with self.assertRaisesRegex(ValueError, "at least two"):
             split_episodes(episodes)
         self.assertEqual(len(split_episodes(episodes, 0)[0]), 1)
-        np.savez(self.data / "episode_0001.npz", obs=np.full((12, 60), np.nan), acts=np.zeros(12, dtype=np.int64))
+        np.savez(self.data / "episode_0001.npz", obs=np.full((12, OBSERVATION_DIM), np.nan), acts=np.zeros(12, dtype=np.int64))
         with self.assertRaisesRegex(ValueError, "finite"):
             load_episodes(self.data)
 
     def test_bc_learns_and_leaves_critic_unchanged(self):
         model = ActorCritic(hidden_sizes=(16,))
         critic_before = {key: value.clone() for key, value in model.critic.state_dict().items()}
-        obs = torch.zeros(32, 60)
+        obs = torch.zeros(32, OBSERVATION_DIM)
         obs[16:, 0] = 1
         actions = torch.cat((torch.zeros(16, dtype=torch.long), torch.ones(16, dtype=torch.long)))
         loader = [(obs, actions)]
@@ -104,7 +105,7 @@ class ImitationTests(unittest.TestCase):
         checkpoint = torch.load(output / "best.pt", weights_only=True)
         self.assertFalse(checkpoint["critic_trained"])
         model = load_policy(output / "best.pt")
-        obs = np.zeros(60, dtype=np.float32)
+        obs = np.zeros(OBSERVATION_DIM, dtype=np.float32)
         expected = ActorCritic(**checkpoint["model_config"])
         expected.load_state_dict(checkpoint["model_state_dict"])
         self.assertEqual(model.predict(obs), expected.predict(obs))
@@ -112,6 +113,14 @@ class ImitationTests(unittest.TestCase):
             model.predict(np.zeros(59))
         with self.assertRaises(FileExistsError):
             main(["--data", str(self.data), "--output", str(output), "--epochs", "1"])
+
+    def test_legacy_expert_schema_is_rejected(self):
+        self.add_episode(1)
+        (self.data / "config.json").write_text(json.dumps({
+            "schema_version": 1, "observation_dim": 60, "actions": list(ACTION_NAMES)
+        }), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Incompatible observation schema"):
+            load_episodes(self.data)
 
 
 if __name__ == "__main__":

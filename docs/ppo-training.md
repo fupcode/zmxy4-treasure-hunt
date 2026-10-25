@@ -2,6 +2,7 @@
 
 训练入口为 `zaomeng_hanghai.train.train_ppo`，算法、采样和 checkpoint 代码均在
 `src/zaomeng_hanghai/train/`。推理继续使用 `policy.py` 和 `run_policy.py`。
+当前观测为 [v2 的 81 维编码](state-encoding.md)，旧 60 维模型不能直接初始化或续训。
 
 运行在线训练会操作游戏窗口。先将游戏停在航海起始界面，确保窗口无遮挡。
 当前文档中的 `你的运行目录` 需要替换为实际目录名。
@@ -13,8 +14,8 @@
 ```
 
 `--init` 加载模型结构和权重，新建包含 actor 和 critic 的 PPO 优化器。
-因此不会误用 BC 中只包含 actor 参数的优化器。模型结构以 checkpoint 为准；
-旧的两层 BC 模型也会保持两层，不会自动变为当前默认的 `256 × 3`。
+因此不会误用 BC 中只包含 actor 参数的优化器。兼容的 v2 模型结构以 checkpoint 为准；
+隐藏层不会自动变为当前默认的 `256 × 3`，60 维旧模型会被拒绝。
 
 也可从随机初始化开始，默认隐藏层为三层、每层 256 个单元：
 

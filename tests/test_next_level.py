@@ -9,6 +9,7 @@ from zaomeng_hanghai.core.map import Map
 from zaomeng_hanghai.core.onnx_model import DetectionResult
 from zaomeng_hanghai.core.rewards import RewardConfig
 from zaomeng_hanghai.env import Env
+from zaomeng_hanghai.core.observation import OBSERVATION_DIM
 
 
 class NextLevelTests(unittest.TestCase):
@@ -97,9 +98,9 @@ class NextLevelTests(unittest.TestCase):
             self.assertEqual(env.step(1), 0)
             state = env.state_encode()
             finish.assert_called_once_with()
-        self.assertEqual(state.shape, (60,))
+        self.assertEqual(state.shape, (OBSERVATION_DIM,))
         self.assertEqual(state[17], 1)
-        self.assertEqual(state[32], 1)
+        self.assertEqual(state[52], 1)
         self.assertIsNone(env.enemy_list[0].vision)
         self.assertIsNone(env.enemy_list[0].distance_array)
 

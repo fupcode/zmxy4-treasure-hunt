@@ -8,10 +8,11 @@ import numpy as np
 
 from zaomeng_hanghai.core.action_manager import ActionManager
 from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
-from zaomeng_hanghai.core.direction import Direction
+from zaomeng_hanghai.core.direction import Direction, move_list
 from zaomeng_hanghai.core.map import Map
 from zaomeng_hanghai.core.rewards import RewardConfig, calculate_reward
 from zaomeng_hanghai.env import Env
+from zaomeng_hanghai.core.observation import OBSERVATION_DIM
 
 
 def empty_map():
@@ -38,6 +39,10 @@ class CollisionTests(unittest.TestCase):
         self.assertTrue(self.game_map.is_move_collision(self.player, 1))
         self.assertFalse(self.game_map.is_move_collision(self.player, 3))
         self.game_map.get_maze()[100, 101] = True
+        self.assertTrue(self.game_map.is_move_collision(self.player, 1))
+        self.assertTrue(self.game_map.is_move_collision(self.player, 5))
+        self.game_map.get_maze()[100, 101] = False
+        self.game_map.get_maze()[101, 100] = True
         self.assertTrue(self.game_map.is_move_collision(self.player, 5))
 
     def test_bounds_and_common_forbidden_region(self):
@@ -48,6 +53,20 @@ class CollisionTests(unittest.TestCase):
         for action in (-1, 9, 0.5):
             with self.assertRaises(ValueError):
                 self.game_map.is_move_collision(self.player, action)
+
+    def test_all_directions_check_three_pixels(self):
+        maze = self.game_map.get_maze()
+        for direction, (dx, dy) in enumerate(move_list, 1):
+            for distance in (1, 2, 3):
+                maze.fill(False)
+                maze[100 + dy * distance, 100 + dx * distance] = True
+                self.assertTrue(self.game_map.is_move_collision(self.player, direction))
+            maze.fill(False)
+            maze[100 + dy * 4, 100 + dx * 4] = True
+            self.assertFalse(self.game_map.is_move_collision(self.player, direction))
+        maze.fill(False)
+        maze[102, 101] = True
+        self.assertTrue(self.game_map.is_move_collision(self.player, 5))
 
 
 class RewardTests(unittest.TestCase):
@@ -65,7 +84,7 @@ class RewardTests(unittest.TestCase):
         env.render = Mock()
         env.update = Mock(return_value=0)
         env.try_next_level = Mock(return_value=0)
-        env.state_encode = Mock(return_value=np.zeros(60, dtype=np.float32))
+        env.state_encode = Mock(return_value=np.zeros(OBSERVATION_DIM, dtype=np.float32))
         env.new_level = False
         return env
 
@@ -156,7 +175,7 @@ class RewardTests(unittest.TestCase):
             env = self.make_env()
             env.update.return_value = status
             obs, reward, terminated, truncated, info = env.step_with_reward(0)
-            self.assertEqual(obs.shape, (60,))
+            self.assertEqual(obs.shape, (OBSERVATION_DIM,))
             self.assertEqual((terminated, truncated), (term, trunc))
             self.assertTrue(info["transition_valid"])
             self.assertEqual(info["reward_terms"][name], amount)

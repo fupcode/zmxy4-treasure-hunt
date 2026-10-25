@@ -121,7 +121,7 @@ PPO checkpoint 同样可交给推理入口：
 | `--value-coef` | 0.5，价值损失为 `0.5 × MSE` |
 | `--max-grad-norm` | 0.5 |
 | `--target-kl` | 0.03；超过其 1.5 倍时停止继续更新；0 禁用 |
-| `--combat-timeout` | 120 秒 |
+| `--combat-timeout` | 30 秒 |
 | `--device` | auto：有 CUDA 时使用 CUDA，否则 CPU |
 | `--threads` | 4 |
 | `--seed` | 新训练为 42，续训恢复存档随机状态 |

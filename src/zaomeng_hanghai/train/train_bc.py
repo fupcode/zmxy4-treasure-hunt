@@ -75,7 +75,7 @@ def main(argv=None):
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
-    parser.add_argument("--hidden-sizes", type=int, nargs="+", default=[128, 128])
+    parser.add_argument("--hidden-sizes", type=int, nargs="+", default=[256, 256, 256])
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, cuda:0 ...")

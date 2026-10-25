@@ -4,7 +4,7 @@
 最小化 `CrossEntropyLoss(actor(obs), acts)`。没有奖励、优势估计或 PPO clipped loss。
 专家记录不包含连续转移，因此不将相邻记录拼成 PPO rollout。
 
-`ActorCritic` 提供独立的 actor 和 critic，默认均为 `60 → 128 → 128` 的 Tanh MLP；
+`ActorCritic` 提供独立的 actor 和 critic，默认均为 `60 → 256 → 256 → 256` 的 Tanh MLP；
 actor 输出 9 个动作 logits，critic 输出标量价值。BC 只优化 actor。
 `act()` 返回动作、log probability、value，`evaluate_actions()` 返回 log probability、
 entropy、value，供后续添加 PPO 更新时复用。critic 目前是随机初始化，不能用来评估收益。
@@ -33,7 +33,7 @@ entropy、value，供后续添加 PPO 更新时复用。critic 目前是随机�
 | `--epochs` | `50` | 最大训练轮数 |
 | `--batch-size` | `512` | 每个 batch 的样本数 |
 | `--learning-rate` | `0.0003` | Adam 学习率 |
-| `--hidden-sizes` | `128 128` | 隐藏层宽度 |
+| `--hidden-sizes` | `256 256 256` | 隐藏层宽度 |
 | `--validation-fraction` | `0.2` | 按整局划分的验证比例；`0` 禁用验证 |
 | `--patience` | `10` | 验证损失连续不改善时早停；`0` 禁用 |
 | `--seed` | `42` | 模型初始化、整局划分和 batch 打乱种子 |

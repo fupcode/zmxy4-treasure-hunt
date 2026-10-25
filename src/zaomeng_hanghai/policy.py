@@ -26,7 +26,7 @@ def mlp(input_dim, hidden_sizes, output_dim):
 class ActorCritic(nn.Module):
     """独立 actor/critic，BC 不修改尚未训练的 critic。"""
 
-    def __init__(self, observation_dim=OBSERVATION_DIM, action_dim=9, hidden_sizes=(128, 128)):
+    def __init__(self, observation_dim=OBSERVATION_DIM, action_dim=9, hidden_sizes=(256, 256, 256)):
         super().__init__()
         if observation_dim <= 0 or action_dim <= 0 or not hidden_sizes or min(hidden_sizes) <= 0:
             raise ValueError("Model dimensions must be positive")

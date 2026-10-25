@@ -91,6 +91,7 @@ version.json
 
 images/
 /data/expert/
+/runs/
 /yolo/*
 !/yolo/README.md
 !/yolo/*.py

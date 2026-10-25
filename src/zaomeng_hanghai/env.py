@@ -81,6 +81,7 @@ class Env:
         self.bullets = Bullets()
         self.falling_items = FallingItems()
         self.new_level = False
+        self.level_started_at = None
 
         self.move_index = None
         self.move_end = None
@@ -158,6 +159,7 @@ class Env:
         self.falling_items = FallingItems()
 
         self.new_level = False
+        self.level_started_at = None
         self.move_index = None
         self.move_end = None
 
@@ -202,6 +204,7 @@ class Env:
         if self.player and self.player.is_next(player):
             self.map.next_level()
             self.new_level = True
+            self.level_started_at = time.monotonic()
 
             print(f"进入第 {self.map.level} 关：关卡类型 {self.map.get_task()}")
 
@@ -496,12 +499,18 @@ class Env:
         return len(self.enemy_list) == 0 and len(self.bullets) == 0
 
     def try_next_level(self):
-        """使用静态地图拾取掉落物、前往出口，不计算战斗危险图。"""
+        """进入新关卡十秒后，使用静态地图拾取掉落物、前往出口。"""
         loop_start_time = time.monotonic()
         while self.can_next_level() and not self.new_level:
-            direction, path = self.map.get_next_direction(self.player, self.falling_items)
-            self.render(path)
-            self._take_expert_action(direction, "navigation")
+            if (
+                self.level_started_at is None
+                or time.monotonic() - self.level_started_at >= 10
+            ):
+                direction, path = self.map.get_next_direction(self.player, self.falling_items)
+                self.render(path)
+                self._take_expert_action(direction, "navigation")
+            else:
+                self.render()
             status_code = self.update()
 
             if status_code:

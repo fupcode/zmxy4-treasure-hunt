@@ -61,7 +61,7 @@ class FrameRateCalculator:
 
 
 class Env:
-    # 角色/关卡 17 + 五个敌人 35 + 三颗子弹 21 + 碰撞方向 8。
+    # 角色/关卡 17 + 五个敌人 40 + 三颗子弹 21 + 碰撞方向 8。
     state_space = OBSERVATION_DIM
     state_schema_version = OBSERVATION_SCHEMA_VERSION
 
@@ -126,7 +126,7 @@ class Env:
             return -3
         return 0
 
-    def init_window(self, outer_window_box=None):
+    def init_window(self, outer_window_box=None, *, focus_game=True):
         self.game_window.init_window(outer_window_box)
         self.window_size = self.game_window.window_size
 
@@ -136,8 +136,9 @@ class Env:
             cv2.moveWindow("Monitor", 0, 0)
             cv2.setWindowProperty("Monitor", cv2.WND_PROP_TOPMOST, 1)
 
-        x1, y1, x2, y2 = self.game_window.window_box
-        click(x2 - 10, y2 - 10)
+        if focus_game:
+            x1, y1, x2, y2 = self.game_window.window_box
+            click(x2 - 10, y2 - 10)
 
     def reset(self):
         self.last_reward = 0.0
@@ -277,6 +278,19 @@ class Env:
             return status_code
         status_code = self.try_next_level()  # 含有update
 
+        return status_code
+
+    def debug_step(self):
+        """只更新感知、专家建议路径和 Monitor；不执行移动、开火或过关。"""
+        status_code = self.update()
+        if status_code not in (0, -3):
+            return status_code
+        self.update_navigation()
+        _, path, self.move_index = self.map.get_shot_place_direction(
+            self.player, self.move_index, self.move_end
+        )
+        self.move_end = path[-1] if path else None
+        self.render(path)
         return status_code
 
     def step(self, action):
@@ -567,18 +581,34 @@ def auto_loop(env: Env, target=3):
 
 
 if __name__ == "__main__":
+    import argparse
     from pathlib import Path
-    import sys
     import os
 
     PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
     os.chdir(PROJECT_DIR)
 
-    if len(sys.argv) > 1:
-        target_ = int(sys.argv[1])
-    else:
-        target_ = 3
+    parser = argparse.ArgumentParser(description="自动战斗或只读调试窗口")
+    parser.add_argument("target", nargs="?", type=int, default=3)
+    parser.add_argument("--debug", action="store_true", help="只显示感知和建议路径，不发送鼠标或键盘指令")
+    parser.add_argument("--map-index", type=int, choices=range(7), help="调试时指定大地图编号，默认从画面识别")
+    parser.add_argument("--level", type=int, choices=range(5), default=0, help="调试开始时所在关卡，默认 0")
+    args = parser.parse_args()
 
     env_ = Env(render_enabled=True)
-    env_.init_window()
-    auto_loop(env_, target_)
+    env_.init_window(focus_game=not args.debug)
+    if args.debug:
+        map_index = args.map_index if args.map_index is not None else env_.game_window.get_map_index_at_start()
+        env_.map.reset(map_index)
+        for _ in range(args.level):
+            env_.map.next_level()
+        print("只读调试：请手动操作游戏，Ctrl+C 退出。")
+        try:
+            while env_.debug_step() in (0, -3):
+                pass
+        except KeyboardInterrupt:
+            pass
+        finally:
+            cv2.destroyWindow("Monitor")
+    else:
+        auto_loop(env_, args.target)

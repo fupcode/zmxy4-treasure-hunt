@@ -71,6 +71,8 @@ def run_training(env, trainer, state, output, *, steps, env_config, max_engine_f
     # 稳定 checkpoint 只在完整 PPO 更新后替换；中断不会写入半次更新。
     save_checkpoint(output / "last.pt", trainer, state, env_config)
     print(f"Training: valid steps {state.env_steps} -> {target_steps}; output={output.resolve()}", flush=True)
+    previous_refresh = getattr(env.game_window, "refresh_on_engine_timeout", False)
+    env.game_window.refresh_on_engine_timeout = True
     try:
         while state.env_steps < target_steps:
             if pending_recovery is not None:
@@ -159,6 +161,7 @@ def run_training(env, trainer, state, output, *, steps, env_config, max_engine_f
     except KeyboardInterrupt:
         print("Interrupted. Resume from last.pt; incomplete collection/update is discarded.", flush=True)
     finally:
+        env.game_window.refresh_on_engine_timeout = previous_refresh
         release_controls()
     print(f"Resume checkpoint: {(output / 'last.pt').resolve()}", flush=True)
     return state

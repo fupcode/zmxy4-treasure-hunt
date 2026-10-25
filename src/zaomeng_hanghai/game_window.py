@@ -33,7 +33,11 @@ def click(x, y):
 
 
 class GameWindow:
+    # 以采样时游戏左上角 (67, 272) 换算，保持点击顺序。
+    REFRESH_CLICK_OFFSETS = ((859, 969), (1135, 314))
+
     def __init__(self, yolo_weight_path="weights/best.onnx", *, capture_enabled=True):
+        self.refresh_on_engine_timeout = False
         self.camera = dxcam.create() if capture_enabled else None
 
         self.model = OnnxModel(yolo_weight_path)
@@ -135,6 +139,10 @@ class GameWindow:
             print("Failed.")
             self.click_normal(0.4, 0.712)
             time.sleep(3)
+        elif status == -4 and self.refresh_on_engine_timeout:
+            print("Engine Time Out. Refreshing game for PPO training.")
+            self.refresh_game()
+            self.start_hanghai(end=end)
         elif status in (-3, -4):
             print("Combat Time Out." if status == -3 else "Engine Time Out.")
             self.click_normal(0.8, 0.08)
@@ -146,6 +154,17 @@ class GameWindow:
             self.click_normal(0.784, 0.765)
             time.sleep(3)
             self.start_hanghai(end=end)
+
+    def refresh_game(self):
+        """聚焦浏览器并刷新，按固定窗口偏移重新进入游戏和航海。"""
+        left, top, right, _ = self.window_box
+        click(int(round((left + right) / 2)), int(top - 10))
+        win32api.keybd_event(win32con.VK_F5, 0, 0, 0)
+        win32api.keybd_event(win32con.VK_F5, 0, win32con.KEYEVENTF_KEYUP, 0)
+        time.sleep(60)
+        for dx, dy in self.REFRESH_CLICK_OFFSETS:
+            click(int(left + dx), int(top + dy))
+            time.sleep(3)
 
     def start_hanghai(self, end=False):
         max_confidence = 0

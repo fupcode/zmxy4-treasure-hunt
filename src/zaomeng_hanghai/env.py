@@ -66,7 +66,7 @@ class Env:
     state_space = OBSERVATION_DIM
     state_schema_version = OBSERVATION_SCHEMA_VERSION
 
-    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False, reward_config=None, combat_timeout=60):
+    def __init__(self, timeout=5, stay_timeout=60, render_enabled=False, reward_config=None, combat_timeout=60):
         if not np.isfinite(combat_timeout) or combat_timeout <= 0:
             raise ValueError("combat_timeout must be positive and finite")
         self.render_enabled = render_enabled

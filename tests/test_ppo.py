@@ -185,11 +185,17 @@ class PPOTests(unittest.TestCase):
 
     def test_repeated_engine_failures_stop_and_keep_checkpoint(self):
         env = FakeEnv([[(0, -4)], [(0, -4)], [(0, -4)]])
+        env.game_window.refresh_on_engine_timeout = False
+        def recover(status):
+            self.assertTrue(env.game_window.refresh_on_engine_timeout)
+            self.assertEqual(status, -4)
+        env.game_window.recover.side_effect = recover
         release = Mock()
         with redirect_stdout(StringIO()), self.assertRaisesRegex(RuntimeError, "3 consecutive"):
             run_training(env, self.trainer(), TrainingState(), self.root, steps=8,
                          env_config=self.env_config, release_controls=release)
         self.assertTrue((self.root / "last.pt").is_file())
+        self.assertFalse(env.game_window.refresh_on_engine_timeout)
         release.assert_called()
 
     def test_bc_initialization_cli_resume_and_bad_config(self):

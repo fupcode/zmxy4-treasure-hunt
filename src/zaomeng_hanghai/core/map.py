@@ -622,6 +622,20 @@ class Map:
         moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, peek_cross_enemy, end_peek_region, end_region = self.flee_mazes
         flee_region = flee_region_bullet + flee_region_enemy
 
+        # 出口通道在静态地图可走，但战斗时被封闭。玩家可能仍在入口内，
+        # 此时先沿实际通路回到战斗区，不能让虚拟边界把起点困住。
+        if moveable_maze[player.y, player.x]:
+            origin_maze = self.get_maze()
+            if (not origin_maze[player.y, player.x]
+                    and self.map_template_without_exit[player.y, player.x]):
+                entry_region = flee_region + moveable_maze.astype(np.int64)
+                path = maze_utils.find_nearest_passable_path(
+                    origin_maze, (player.x, player.y), entry_region,
+                    distance_maze=obstacle_distance_maze, hate_factor=5,
+                )
+                if path:
+                    return self.get_direction_from_next_point(player, path[0]), path, 5
+
         # 逃离子弹和敌人
         if flee_region[player.y, player.x] > 0:
             if last_move_index != 1:

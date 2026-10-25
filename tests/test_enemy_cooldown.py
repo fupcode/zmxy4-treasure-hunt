@@ -20,7 +20,7 @@ class EnemyCooldownTests(unittest.TestCase):
         enemy = Enemy(self.box, self.maze)
         self.assertFalse(hasattr(enemy, "fired"))
         self.assertEqual(enemy.fire_cool_down, 0)
-        self.assertFalse(enemy.is_safe(100))
+        self.assertFalse(enemy.is_safe())
         self.assertEqual(enemy.state_encode(self.player)[-1], 0)
         self.assertEqual(OBSERVATION_SCHEMA_VERSION, 2)
         self.assertEqual(OBSERVATION_DIM, 86)
@@ -33,8 +33,10 @@ class EnemyCooldownTests(unittest.TestCase):
         enemy.update_fire_cool_down(101.5)
         self.assertEqual(enemy.fire_cool_down, 1.5)
         self.assertEqual(enemy.state_encode(self.player)[-1], 0.5)
-        self.assertTrue(enemy.is_safe(102.9))
-        self.assertFalse(enemy.is_safe(103))
+        enemy.update_fire_cool_down(102.9)
+        self.assertTrue(enemy.is_safe())
+        enemy.update_fire_cool_down(103)
+        self.assertFalse(enemy.is_safe())
         enemy.update_fire_cool_down(110)
         self.assertEqual(enemy.fire_cool_down, 0)
         enemy.set_fired(111)
@@ -45,7 +47,8 @@ class EnemyCooldownTests(unittest.TestCase):
         enemy.set_fired(100)
         self.assertEqual(enemy.fire_cool_down, 1)
         self.assertAlmostEqual(enemy.state_encode(self.player)[-1], 1 / 3)
-        self.assertFalse(enemy.is_safe(101))
+        enemy.update_fire_cool_down(101)
+        self.assertFalse(enemy.is_safe())
 
     def test_tracking_updates_matched_and_temporarily_missing_enemies(self):
         enemies = EnemyList()
@@ -59,7 +62,7 @@ class EnemyCooldownTests(unittest.TestCase):
         self.assertEqual(enemies[0].fire_cool_down, 1)
         enemies.update([self.box], self.maze, current_time=104)
         self.assertEqual(enemies[0].fire_cool_down, 0)
-        self.assertFalse(enemies[0].is_safe(104))
+        self.assertFalse(enemies[0].is_safe())
 
     def test_unmatched_enemy_does_not_inherit_old_cooldown(self):
         enemies = EnemyList()

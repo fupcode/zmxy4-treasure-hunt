@@ -1,7 +1,5 @@
 """地图构建、关卡路线和移动/攻击位置决策。"""
 
-import time
-
 import numpy as np
 from scipy.ndimage import binary_dilation
 
@@ -547,9 +545,9 @@ class Map:
 
         flee_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         if self.level != 4:
-            flee_const = 45
+            flee_const = 40
         else:
-            flee_const = 60
+            flee_const = 50
         for enemy in enemy_list:
             if enemy is not None:
                 enemy_distance_r = flee_const - enemy.distance_array
@@ -558,11 +556,10 @@ class Map:
 
         peek_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         peek_cross_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
-        current_time = time.time()
         peek_x = 65
         peek_y = 50
         for enemy in enemy_list:
-            if enemy is None or enemy.is_safe(current_time):
+            if enemy is None or enemy.is_safe():
                 continue
             range_left = max(0, enemy.x1 - peek_x)
             range_right = min(MAZE_WIDTH, enemy.x2 + peek_x)
@@ -580,7 +577,7 @@ class Map:
 
         for enemy in enemy_list:
             if enemy is not None:
-                if enemy.is_safe(current_time):
+                if enemy.is_safe():
                     end_region[enemy.vision < 1] *= 0.92
                 else:
                     end_region *= enemy.vision

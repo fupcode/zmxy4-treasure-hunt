@@ -152,7 +152,7 @@ class Enemy:
             self.cool_down_time = 1
 
         else:
-            horizontal_reduction = 0.002
+            horizontal_reduction = 0.003
             self.cool_down_time = 3
 
         self.x1n += horizontal_reduction
@@ -257,8 +257,7 @@ class Enemy:
             else max(0.0, self.fire_ready_time - current_time)
         )
 
-    def is_safe(self, current_time):
-        self.update_fire_cool_down(current_time)
+    def is_safe(self):
         return self.fire_cool_down > 0
 
     def state_encode(self, player):

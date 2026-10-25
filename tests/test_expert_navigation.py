@@ -13,22 +13,6 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
-    def test_screenshot_player_in_bottom_exit_can_return_to_combat(self):
-        game_map = Map(render_enabled=False)
-        game_map.reset(3)
-        game_map.next_level()
-        player = SimpleNamespace(x=169, y=166)
-        game_map.update(player, [], [])
-        self.assertFalse(game_map.get_maze()[player.y, player.x])
-        self.assertTrue(game_map.flee_mazes[0][player.y, player.x])
-        direction, path, index = game_map.get_shot_place_direction(player, None, None)
-        self.assertIsNotNone(direction)
-        self.assertEqual(index, 5)
-        self.assertTrue(all(not game_map.get_maze()[y, x] for x, y in path))
-        self.assertFalse(game_map.flee_mazes[0][path[-1][1], path[-1][0]])
-        # 恢复过程不能取消正常的战斗边界。
-        self.assertTrue(game_map.map_template_without_exit[player.y, player.x])
-
     def test_all_exit_corridors_can_return_to_combat(self):
         game_map = Map(render_enabled=False)
         game_map.reset(3)

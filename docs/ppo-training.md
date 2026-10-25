@@ -38,10 +38,10 @@
 新训练拒绝覆盖已有目录；同目录续训会替换 `last.pt`，并按需替换 `best.pt`。
 `--resume` 只接受 PPO 存档，BC 模型应使用 `--init`。
 
-续训默认沿用已保存的 PPO 参数和战斗时限；命令行显式提供的参数可以覆盖：
+续训默认沿用已保存的 PPO 参数，但每关战斗时限默认使用 30 秒，覆盖旧存档的时限；命令行可以显式指定其他时限：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.train.train_ppo --resume runs/ppo/你的运行目录/last.pt --steps 50000 --learning-rate 0.00005 --combat-timeout 150
+.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.train.train_ppo --resume runs/ppo/你的运行目录/last.pt --steps 50000 --learning-rate 0.00005 --combat-timeout 30
 ```
 
 新训练设置默认保存到 `config.json`，每次启动的有效配置追加到 `sessions.jsonl`。
@@ -75,7 +75,7 @@ checkpoint 中始终保存当前生效的参数。
 - 单关战斗超时 `-3`：保留超时惩罚，使用截断前有效观测的 critic 值 bootstrap；GAE 不跨局递推。
 - 引擎问题 `-4`：丢弃故障步骤；已有有效样本可保留，并在最后一个有效观测处切断轨迹，
   不把故障产生的零奖励、未知观测或下一局初始观测当作转移。
-- 加载和自动导航期间暂停战斗计时，切关重置，默认每关 120 秒。
+- 加载和自动导航期间暂停战斗计时，切关重置，默认每关 30 秒。
 - 连续 3 次引擎/开局失败时停止，避免对异常窗口持续重试；可用 `--max-engine-failures` 调整。
 
 折扣按每次 `Env.step_with_reward()` 决策计算，包含自动导航的一步可能持续更久，

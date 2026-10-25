@@ -31,7 +31,7 @@ Python API 中的相对输出路径以当前工作目录为基准：
 ```python
 from zaomeng_hanghai.env import Env, auto_loop
 
-env = Env(render_enabled=False, combat_timeout=120)
+env = Env(render_enabled=False, combat_timeout=30)
 env.init_window()
 status = env.auto_run()  # 单局；每次独立调用默认创建一个新目录
 print(env.expert_data_path)

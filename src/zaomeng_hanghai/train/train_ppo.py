@@ -188,7 +188,7 @@ def build_parser():
         parser.add_argument("--" + name.replace("_", "-"), type=int, default=None)
     for name in ("learning_rate", "gamma", "gae_lambda", "clip_range", "entropy_coef", "value_coef", "max_grad_norm", "target_kl"):
         parser.add_argument("--" + name.replace("_", "-"), type=float, default=None)
-    parser.add_argument("--combat-timeout", type=float, help="每关战斗时限，新训练默认 30 秒；续训沿用存档")
+    parser.add_argument("--combat-timeout", type=float, default=30, help="每关战斗时限，训练和续训均默认 30 秒，覆盖存档中的时限")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42, help="新训练随机种子；续训恢复存档中的随机状态")

@@ -14,7 +14,7 @@ def main(argv=None):
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--stochastic", action="store_true")
     parser.add_argument("--max-episode-seconds", type=float, default=300)
-    parser.add_argument("--combat-timeout", type=float, default=120, help="同一关累计战斗时限（秒）")
+    parser.add_argument("--combat-timeout", type=float, default=30, help="同一关累计战斗时限（秒），默认 30")
     args = parser.parse_args(argv)
     if args.episodes <= 0 or not 0 < args.max_episode_seconds < float("inf"):
         parser.error("episodes and max-episode-seconds must be positive and finite")

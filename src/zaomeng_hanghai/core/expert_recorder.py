@@ -128,3 +128,13 @@ class ExpertRecorder:
         self.active = None
         self.rows = []
         self.progress("running")
+        result = "已保存" if reason is None else f"已丢弃（{reason}）"
+        print(
+            f"[专家样本] 第 {entry['episode_id']} 局：状态 {status}，终止关卡 {terminal_level}，"
+            f"耗时 {duration:.1f}s；采集 {entry['sample_count']} 对状态—动作样本"
+            f"（开局 {entry['start_samples']}，战斗 {entry['combat_samples']}），{result}。"
+        )
+        print(
+            f"[专家样本] 当前目录累计：保存 {self.saved_samples} 对，保留 {self.kept} 局，"
+            f"丢弃 {self.finished - self.kept} 局；目录：{self.path}"
+        )

@@ -33,8 +33,12 @@ def click(x, y):
 
 
 class GameWindow:
-    # 以采样时游戏左上角 (67, 272) 换算，保持点击顺序。
-    REFRESH_CLICK_OFFSETS = ((859, 969), (1135, 314))
+    # 按 1762 × 1106 参考窗口换算的相对坐标。
+    REFRESH_CLICK_POSITIONS = (
+        (859 / 1762, 969 / 1106),
+        (1135 / 1762, 314 / 1106),
+        (1505 / 1762, 265 / 1106),
+    )
 
     def __init__(self, yolo_weight_path="weights/best.onnx", *, capture_enabled=True):
         self.refresh_on_engine_timeout = False
@@ -156,14 +160,14 @@ class GameWindow:
             self.start_hanghai(end=end)
 
     def refresh_game(self):
-        """聚焦浏览器并刷新，按固定窗口偏移重新进入游戏和航海。"""
+        """聚焦浏览器并刷新，按窗口相对坐标重新进入游戏和航海。"""
         left, top, right, _ = self.window_box
         click(int(round((left + right) / 2)), int(top - 10))
         win32api.keybd_event(win32con.VK_F5, 0, 0, 0)
         win32api.keybd_event(win32con.VK_F5, 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(60)
-        for dx, dy in self.REFRESH_CLICK_OFFSETS:
-            click(int(left + dx), int(top + dy))
+        for xn, yn in self.REFRESH_CLICK_POSITIONS:
+            self.click_normal(xn, yn)
             time.sleep(3)
 
     def start_hanghai(self, end=False):
@@ -190,7 +194,7 @@ class GameWindow:
 
         self.click_normal(icon_box.xywhn[0], icon_box.xywhn[1])
 
-        time.sleep(0.5)
+        time.sleep(1)
         self.click_normal(0.352, 0.706)
         if not end:
             time.sleep(0.2)

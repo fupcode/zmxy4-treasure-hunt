@@ -103,3 +103,19 @@ env = Env(reward_config=RewardConfig(stationary=-0.005, wall_collision=-0.2))
 
 采集数据默认保存到项目根目录的 `data/expert/<运行目录>/`。
 目录结构、过滤规则、NPZ 字段、状态编码和读取示例见 [专家数据格式](expert-data.md)。
+
+## 图片手动检查敌人碰撞箱
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 tests/enemy_collision_test.py images/boss.png --map-index 0 --level 4
+```
+
+黄色虚线为 YOLO 检测框，绿色实线为 `Enemy` 使用的碰撞箱（检测框下半部），
+青色十字为经地图修正后的寻路位置。碰撞箱读取实体的 `320×200` 整数坐标后映射回原图。
+使用 `GameWindow` 正式感知流程的离线图片入口，不创建屏幕采集器或发送按键。
+默认输入已裁剪好的游戏窗口截图；完整桌面截图可加 `--auto-crop`。
+`--map-index` 和 `--level` 应匹配截图，以确保寻路位置的障碍修正正确。
+
+`--force-detect` 可在局部截图缺失血条/小地图时跳过加载/结算判断；仍保留界面遮罩处理。
+`--save runs/manual/enemy_collision.png --no-show` 可只保存结果，
+`--model`、`--conf` 可指定权重和置信度。

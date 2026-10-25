@@ -33,8 +33,8 @@ def click(x, y):
 
 
 class GameWindow:
-    def __init__(self, yolo_weight_path="weights/best.onnx"):
-        self.camera = dxcam.create()
+    def __init__(self, yolo_weight_path="weights/best.onnx", *, capture_enabled=True):
+        self.camera = dxcam.create() if capture_enabled else None
 
         self.model = OnnxModel(yolo_weight_path)
 
@@ -78,7 +78,13 @@ class GameWindow:
         return self.map_index
 
     def update(self):
-        self.window_image = self.capture_screen(box=self.window_box)
+        return self.update_from_image(self.capture_screen(box=self.window_box))
+
+    def update_from_image(self, image, *, conf_threshold=0.4, check_status=True):
+        """处理已裁剪为游戏窗口的 RGB 图片，与实时更新共用感知流程。"""
+        if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
+            raise ValueError("Expected an RGB uint8 image with shape (H, W, 3)")
+        self.window_image = image.copy()
 
         self.detect_item(self.window_image)
 
@@ -92,14 +98,14 @@ class GameWindow:
         map_contours = self.locate_map_contours(self.window_image)
         self.hit_point = self.get_hit_point(self.window_image)
 
-        if len(map_contours) != 1 or self.hit_point == 0:
+        if check_status and (len(map_contours) != 1 or self.hit_point == 0):
             if self.is_failed(self.window_image):
                 return -2
             if self.is_successful(self.window_image):
                 return 1
             return -1
 
-        det = self.model(self.window_image)
+        det = self.model(self.window_image, conf_threshold=conf_threshold)
 
         self.player_box = self.filter_player(det)
         self.enemy_boxes = det['enemy']
@@ -295,6 +301,8 @@ class GameWindow:
         self.items["fan"] = np.mean(fan_mask) < 100
 
     def capture_screen(self, box=None):
+        if self.camera is None:
+            raise RuntimeError("Screen capture is disabled; use update_from_image()")
         while True:
             image = self.camera.grab(region=box)
 

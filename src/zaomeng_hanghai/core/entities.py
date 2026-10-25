@@ -145,15 +145,17 @@ class Enemy:
 
         self.x1n, self.y1n, self.x2n, self.y2n = enemy_box.xyxyn
         self.y1n += xywhn[3] / 2
-        self.y2n -= 0.006
+        self.y2n -= 0.008
 
         if enemy_box.xywhn[2] > 0.07:
             # boss
-            horizontal_reduction = 0.01
+            horizontal_reduction = 0.012
+            self.y1n += 0.004
+            self.y2n -= 0.008
             self.cool_down_time = 1
 
         else:
-            horizontal_reduction = 0.0033
+            horizontal_reduction = 0.004
             self.cool_down_time = 3
 
         self.x1n += horizontal_reduction

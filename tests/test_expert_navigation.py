@@ -1,6 +1,7 @@
 """专家战斗寻路的窄目标、墙角和敌人重叠回归测试。"""
 
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,6 +15,34 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
+    def test_shooting_blocks_only_danger_in_ten_cell_square(self):
+        shape = (40, 50)
+        for start in ((20, 20), (0, 0), (49, 39)):
+            for local_peek in (False, True):
+                with self.subTest(start=start, local_peek=local_peek):
+                    game_map = Map.__new__(Map)
+                    game_map.level = 1
+                    maze = np.zeros(shape, dtype=bool)
+                    maze[5, 5] = True
+                    yy, xx = np.indices(shape)
+                    # 子弹和敌人危险交错分布，并留出安全格子。
+                    bullets = ((xx + yy) % 3 == 0).astype(np.int64)
+                    enemies = ((xx + yy) % 3 == 1).astype(np.int64)
+                    x, y = start
+                    bullets[y, x] = enemies[y, x] = 0
+                    empty = np.zeros(shape)
+                    peek = np.ones(shape) if local_peek else empty
+                    game_map.flee_mazes = (maze, np.ones(shape), bullets, enemies,
+                                           peek, empty, empty, empty)
+                    with patch("zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region", return_value=[]) as search:
+                        game_map.get_shot_place_direction(SimpleNamespace(x=x, y=y), None, None)
+                    expected = maze | (((bullets + enemies) > 0)
+                                       & (abs(xx - x) <= 10) & (abs(yy - y) <= 10))
+                    self.assertEqual(search.call_count, 2 if local_peek else 1)
+                    for invocation in search.call_args_list:
+                        np.testing.assert_array_equal(invocation.args[0], expected)
+                    self.assertEqual(np.count_nonzero(maze), 1)
+
     def test_overlapping_bullet_danger_adds_and_is_order_independent(self):
         shape = (MAZE_HEIGHT, MAZE_WIDTH)
         game_map = Map.__new__(Map)

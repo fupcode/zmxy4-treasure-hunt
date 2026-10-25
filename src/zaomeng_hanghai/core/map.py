@@ -644,7 +644,11 @@ class Map:
 
         # 寻路的危险屏蔽不能污染缓存，否则下一次脱险仍会被旧屏蔽困住。
         moveable_maze = moveable_maze.copy()
-        moveable_maze[flee_region > 0] = 1
+        # 射击寻路仅屏蔽玩家上下左右各 10 格内的危险区域。
+        height, width = moveable_maze.shape
+        left, right = max(0, player.x - 10), min(width, player.x + 11)
+        up, down = max(0, player.y - 10), min(height, player.y + 11)
+        moveable_maze[up:down, left:right] |= flee_region[up:down, left:right] > 0
 
         # 优先在附近寻找对齐射击位置；没有局部路径时回退到全局寻路。
         if self.level != 4 and peek_region_enemy[player.y, player.x] > 0:

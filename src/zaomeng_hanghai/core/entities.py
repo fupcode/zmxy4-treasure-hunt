@@ -506,7 +506,7 @@ class FallingItem:
 
 
 class FallingItems(UserList):
-    def __init__(self, max_disappear_count=3, threshold_distance=10):
+    def __init__(self, max_disappear_count=10, threshold_distance=10):
         super().__init__()
         self.data = []
         self.max_disappear_count = max_disappear_count

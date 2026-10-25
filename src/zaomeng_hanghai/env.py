@@ -511,6 +511,7 @@ class Env:
                 self._take_expert_action(direction, "navigation")
             else:
                 self.render()
+            time.sleep(0.1)
             status_code = self.update()
 
             if status_code:

@@ -10,3 +10,9 @@
 ```
 
 训练参数、checkpoint 与游戏推理命令见 [模仿学习说明](docs/imitation-learning.md)。
+
+在线 PPO 训练、断点续训和仅在奖励变化时打印日志见 [PPO 训练说明](docs/ppo-training.md)：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.train.train_ppo --init runs/bc/你的运行目录/best.pt --steps 100000
+```

@@ -13,19 +13,71 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
-    def test_all_exit_corridors_can_return_to_combat(self):
-        game_map = Map(render_enabled=False)
-        game_map.reset(3)
-        game_map.next_level()
-        for x, y in ((160, 180), (160, 10), (10, 90), (310, 90)):
-            with self.subTest(start=(x, y)):
-                player = SimpleNamespace(x=x, y=y)
-                game_map.update(player, [], [])
-                direction, path, index = game_map.get_shot_place_direction(player, None, None)
-                self.assertIsNotNone(direction)
-                self.assertEqual(index, 5)
-                self.assertTrue(all(not game_map.get_maze()[py, px] for px, py in path))
-                self.assertFalse(game_map.flee_mazes[0][path[-1][1], path[-1][0]])
+    def test_coarse_search_is_used_when_target_is_on_five_pixel_grid(self):
+        maze = np.zeros((25, 30), dtype=bool)
+        targets = np.zeros(maze.shape)
+        targets[12, 22] = 0.9
+        path = find_best_path_to_region(maze, (2, 2), targets,
+                                        distance_maze=np.ones(maze.shape))
+        self.assertEqual(path[-1], (22, 12))
+        points = [(2, 2)] + path
+        for (x1, y1), (x2, y2) in zip(points, points[1:]):
+            self.assertEqual(max(abs(x2 - x1), abs(y2 - y1)), 5)
+
+    def test_coarse_search_cannot_jump_through_thin_wall(self):
+        maze = np.zeros((20, 30), dtype=bool)
+        maze[:, 9] = True
+        targets = np.zeros(maze.shape)
+        targets[12, 22] = 0.9
+        self.assertEqual(find_best_path_to_region(
+            maze, (2, 2), targets, distance_maze=np.ones(maze.shape)), [])
+
+    def test_coarse_partial_escape_does_not_skip_fine_search(self):
+        maze = np.zeros((16, 16), dtype=bool)
+        danger = np.full(maze.shape, 10.0)
+        danger[:, 6:] = 5
+        danger[8, 9] = 0
+        path = find_nearest_passable_path(maze, (1, 1), danger,
+                                          distance_maze=np.ones(maze.shape))
+        self.assertEqual(path[-1], (9, 8))
+        points = [(1, 1)] + path
+        self.assertTrue(all(max(abs(x2-x1), abs(y2-y1)) == 1
+                            for (x1, y1), (x2, y2) in zip(points, points[1:])))
+
+    def test_peek_approaches_alignment_then_stays_instead_of_retreating(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        shape = (20, 30)
+        maze = np.zeros(shape, dtype=bool)
+        empty = np.zeros(shape)
+        peek = np.ones(shape)
+        cross = empty.copy()
+        cross[:, 10] = 1
+        targets = empty.copy()
+        targets[10, 10] = 0.9
+        game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
+                               peek, cross, targets, targets)
+        direction, path, index = game_map.get_shot_place_direction(
+            SimpleNamespace(x=2, y=10), None, None)
+        self.assertIsNotNone(direction)
+        self.assertEqual(index, 3)
+        self.assertEqual(path[-1], (10, 10))
+        self.assertEqual(game_map.get_shot_place_direction(
+            SimpleNamespace(x=10, y=10), index, path[-1]), (None, [], 0))
+
+    def test_valid_shooting_position_does_not_chase_higher_peek_score(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        shape = (20, 30)
+        maze = np.zeros(shape, dtype=bool)
+        empty = np.zeros(shape)
+        targets = empty.copy()
+        targets[10, 10] = 0.4
+        targets[10, 15] = 0.9
+        game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
+                               np.ones(shape), targets > 0, targets, targets)
+        self.assertEqual(game_map.get_shot_place_direction(
+            SimpleNamespace(x=10, y=10), None, None), (None, [], 0))
 
     def test_single_pixel_target_off_stride_grid(self):
         maze = np.zeros((25, 30), dtype=bool)

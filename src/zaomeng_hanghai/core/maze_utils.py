@@ -103,9 +103,10 @@ def find_nearest_passable_point(maze, start):
     return start  # 如果没有找到，返回原点（极端情况下）
 
 
-def _pixel_region_path(maze, start, targets, distance_maze, hate_factor,
-                       danger=None, max_time=0.05, preferred_end=None):
-    """逐像素 A*，避免跨过细目标和薄墙；碰撞范围由已扩张的地图决定。
+def _region_path(maze, start, targets, distance_maze, hate_factor,
+                 danger=None, max_time=0.02, preferred_end=None, stride=1,
+                 allow_partial=True):
+    """指定步长的 A*；跨步路径逐格检查，不额外检查斜向两侧。
 
     max_time 是找到首条路径后的择优预算；预算耗尽时仍先找到可达目标，
     防止较远的窄目标因超时而始终返回空路径。无法完全脱险时返回风险更低的位置。
@@ -156,12 +157,21 @@ def _pixel_region_path(maze, start, targets, distance_maze, hate_factor,
         if best is not None and time.perf_counter() - started >= max_time:
             return path_to(best)
         for dx, dy in directions:
-            nx, ny = cx + dx, cy + dy
+            nx, ny = cx + dx * stride, cy + dy * stride
             if not (0 <= nx < cols and 0 <= ny < rows) or maze[ny, nx]:
                 continue
-            step_cost = 1 + hate_factor / (distance_maze[ny, nx] + 1)
-            if danger is not None:
-                step_cost += danger[ny, nx]
+            step_cost = 0.0
+            blocked = False
+            for offset in range(1, stride + 1):
+                x, y = cx + dx * offset, cy + dy * offset
+                if maze[y, x]:
+                    blocked = True
+                    break
+                step_cost += 1 + hate_factor / (distance_maze[y, x] + 1)
+                if danger is not None:
+                    step_cost += danger[y, x]
+            if blocked:
+                continue
             new_cost = cost + step_cost
             neighbor = (nx, ny)
             if new_cost < costs.get(neighbor, np.inf):
@@ -177,12 +187,28 @@ def _pixel_region_path(maze, start, targets, distance_maze, hate_factor,
                 heapq.heappush(queue, (round(priority, 9), remaining, new_cost, neighbor))
     if best is not None:
         return path_to(best)
-    return path_to(safer) if danger is not None else []
+    return path_to(safer) if danger is not None and allow_partial else []
+
+
+def _coarse_to_fine_region_path(maze, start, targets, distance_maze, hate_factor, **kwargs):
+    """先搜索 5 格网格，未找到目标时再以 1 格完整搜索。"""
+    if not np.any((np.asarray(targets) > 0) & (maze == 0)):
+        return []
+    if distance_maze is None:
+        distance_maze = calculate_distance_from_obstacles(maze)
+    for stride in (5, 1):
+        path = _region_path(
+            maze, start, targets, distance_maze, hate_factor,
+            stride=stride, allow_partial=stride == 1, **kwargs,
+        )
+        if path or (not maze[start[1], start[0]] and targets[start[1], start[0]] > 0):
+            return path
+    return []
 
 
 def find_nearest_passable_path(maze, start, flee_region, distance_maze=None, hate_factor=1, last_move_end=None):
-    """寻找脱险路径；stride 保留接口兼容，搜索精度固定为一个逻辑像素。"""
-    return _pixel_region_path(maze, start, (flee_region == 0).astype(np.float32),
+    """先以 5 格寻找脱险路径，失败后以 1 格重试。"""
+    return _coarse_to_fine_region_path(maze, start, (flee_region == 0).astype(np.float32),
                               distance_maze, hate_factor, danger=flee_region,
                               preferred_end=last_move_end)
 
@@ -246,51 +272,7 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
     return [end]
 
 
-def find_nearest_path_to_region(maze, start, flee_region, end_region, stride: int = 10):
-    # 迷宫的尺寸
-    rows, cols = maze.shape
-
-    # 八方向移动
-    directions = [
-        (0, stride), (stride, 0), (0, -stride), (-stride, 0),  # 上下左右
-        (stride, stride), (stride, -stride), (-stride, stride), (-stride, -stride)  # 四个对角线
-    ]
-
-    # 初始化队列
-    queue = deque([start])
-
-    # 路径跟踪字典
-    came_from = {start: None}
-
-    while queue:
-        current = queue.popleft()
-        cx, cy = current
-
-        # 判断是否进入终点
-        if end_region[cy, cx] > 0:
-            # 回溯记录当前路径
-            path = []
-            temp = current
-            while temp is not None:
-                path.append(temp)
-                temp = came_from[temp]
-            path.reverse()
-            return path
-
-        # 八向扩展
-        for dc, dr in directions:
-            nx, ny = cx + dc, cy + dr
-
-            if 0 <= ny < rows and 0 <= nx < cols and maze[ny, nx] == 0 and flee_region[ny, nx] == 0:
-                neighbor = (nx, ny)
-                if neighbor not in came_from:
-                    queue.append(neighbor)
-                    came_from[neighbor] = current
-
-    return []
-
-
-def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1, max_time=0.05):
-    """按目标评分择优；逐像素搜索，不再受 stride 网格对齐限制。"""
-    return _pixel_region_path(maze, start, end_region, distance_maze,
+def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1, max_time=0.02):
+    """按目标评分择优；先 5 格粗搜索，无结果时再 1 格细搜索。"""
+    return _coarse_to_fine_region_path(maze, start, end_region, distance_maze,
                               hate_factor, max_time=max_time)

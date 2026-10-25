@@ -617,22 +617,8 @@ class Map:
         return moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, peek_cross_enemy, end_peek_region, end_region
 
     def get_shot_place_direction(self, player, last_move_index, last_move_end):
-        moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, peek_cross_enemy, end_peek_region, end_region = self.flee_mazes
+        moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, _, end_peek_region, end_region = self.flee_mazes
         flee_region = flee_region_bullet + flee_region_enemy
-
-        # 出口通道在静态地图可走，但战斗时被封闭。玩家可能仍在入口内，
-        # 此时先沿实际通路回到战斗区，不能让虚拟边界把起点困住。
-        if moveable_maze[player.y, player.x]:
-            origin_maze = self.get_maze()
-            if (not origin_maze[player.y, player.x]
-                    and self.map_template_without_exit[player.y, player.x]):
-                entry_region = flee_region + moveable_maze.astype(np.int64)
-                path = maze_utils.find_nearest_passable_path(
-                    origin_maze, (player.x, player.y), entry_region,
-                    distance_maze=obstacle_distance_maze, hate_factor=5,
-                )
-                if path:
-                    return self.get_direction_from_next_point(player, path[0]), path, 5
 
         # 逃离子弹和敌人
         if flee_region[player.y, player.x] > 0:
@@ -641,50 +627,32 @@ class Map:
             flee_path = maze_utils.find_nearest_passable_path(moveable_maze, (player.x, player.y), flee_region,
                                                               distance_maze=obstacle_distance_maze, hate_factor=5,
                                                               last_move_end=last_move_end)
-            if len(flee_path) > 0:
-                flee_direction = self.get_direction_from_next_point(player, flee_path[0])
-                return flee_direction, flee_path, 1
-            # else:
-            #     print("未找到逃离路径")
+            if flee_path:
+                return self.get_direction_from_next_point(player, flee_path[0]), flee_path, 1
+
+        # 已处于安全射击位置就停留，避免进入对齐线后又撤离或反复换位。
+        if (not moveable_maze[player.y, player.x]
+                and flee_region[player.y, player.x] == 0
+                and end_region[player.y, player.x] > 0):
+            return None, [], 0
 
         # 寻路的危险屏蔽不能污染缓存，否则下一次脱险仍会被旧屏蔽困住。
         moveable_maze = moveable_maze.copy()
         moveable_maze[flee_region > 0] = 1
 
-        if self.level != 4:
-            # peek后逃离
-            if peek_cross_enemy[player.y, player.x] > 0:
-                flee_path = maze_utils.find_nearest_passable_path(moveable_maze, (player.x, player.y), peek_cross_enemy,
-                                                                  distance_maze=obstacle_distance_maze, hate_factor=8)
-                if len(flee_path) > 0:
-                    flee_direction = self.get_direction_from_next_point(player, flee_path[0])
-                    return flee_direction, flee_path, 2
-                # else:
-                #     print("未找到peek逃离路径")
-
-            # peek敌人
-            if peek_region_enemy[player.y, player.x] > 0:
-                peek_maze = moveable_maze.copy()
-                peek_maze[peek_region_enemy == 0] = 1
-                path = maze_utils.find_best_path_to_region(peek_maze, (player.x, player.y), end_peek_region,
-                                                           distance_maze=obstacle_distance_maze, hate_factor=5)
-                if len(path) > 0:
-                    direction = self.get_direction_from_next_point(player, path[0])
-                    return direction, path, 3
-                # else:
-                #     print("未找到peek路径")
-
-        # 在远处时，去往敌人十字区域
-        if end_region[player.y, player.x] > 0:
-            return None, [], 0
+        # 优先在附近寻找对齐射击位置；没有局部路径时回退到全局寻路。
+        if self.level != 4 and peek_region_enemy[player.y, player.x] > 0:
+            peek_maze = moveable_maze | (peek_region_enemy == 0)
+            path = maze_utils.find_best_path_to_region(
+                peek_maze, (player.x, player.y), end_peek_region,
+                distance_maze=obstacle_distance_maze, hate_factor=5,
+            )
+            if path:
+                return self.get_direction_from_next_point(player, path[0]), path, 3
 
         path = maze_utils.find_best_path_to_region(moveable_maze, (player.x, player.y), end_region,
                                                    distance_maze=obstacle_distance_maze, hate_factor=5)
 
-        if len(path) > 0:
-            next_point = path[0]
-            direction = self.get_direction_from_next_point(player, next_point)
-            return direction, path, 4
-        # else:
-        #     print("未找到远程射击路径")
+        if path:
+            return self.get_direction_from_next_point(player, path[0]), path, 4
         return None, [], -1

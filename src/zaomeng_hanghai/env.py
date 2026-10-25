@@ -11,6 +11,7 @@ from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
 from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.entities import Bullets, EnemyList, FallingItems, Player
 from zaomeng_hanghai.core.map import Map
+from zaomeng_hanghai.core.rewards import RewardConfig, calculate_reward
 
 
 def timeit(func):
@@ -60,7 +61,9 @@ class Env:
     # 角色 7 + 关卡进度 1 + 关卡类型 9 + 敌人 15 + 弹幕 28。
     state_space = 17 + EnemyList.state_dim + Bullets.state_dim
 
-    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False):
+    def __init__(self, timeout=5, stay_timeout=30, render_enabled=False, reward_config=None, combat_timeout=120):
+        if not np.isfinite(combat_timeout) or combat_timeout <= 0:
+            raise ValueError("combat_timeout must be positive and finite")
         self.render_enabled = render_enabled
         self.timeout = timeout
         self.game_window = GameWindow()
@@ -80,6 +83,44 @@ class Env:
         self.fps_calculator = FrameRateCalculator()
         self.map = Map(render_enabled=render_enabled)
         self.stay_timeout = stay_timeout
+        self.reward_config = reward_config if reward_config is not None else RewardConfig()
+        self.last_reward = 0.0
+        self.reward_terms = {}
+        self.last_step_info = {}
+        self._episode_done = False
+        self.combat_timeout = combat_timeout
+        self._reset_combat_timer()
+
+    def _reset_combat_timer(self):
+        self._combat_level = None
+        self._combat_elapsed = 0.0
+        self._combat_started_at = None
+
+    @property
+    def combat_elapsed_seconds(self):
+        elapsed = self._combat_elapsed
+        if self._combat_started_at is not None:
+            elapsed += max(0.0, time.monotonic() - self._combat_started_at)
+        return elapsed
+
+    def _pause_combat_timer(self):
+        self._combat_elapsed = self.combat_elapsed_seconds
+        self._combat_started_at = None
+
+    def _update_combat_timer(self):
+        """同关累计战斗时间；空场暂停，切关重置，加载时间不计入。"""
+        if self._combat_level != self.map.level:
+            self._reset_combat_timer()
+            self._combat_level = self.map.level
+        if not 1 <= self.map.level <= 4 or self.can_next_level():
+            self._pause_combat_timer()
+            return 0
+        if self._combat_started_at is None:
+            self._combat_started_at = time.monotonic()
+        if self.combat_elapsed_seconds >= self.combat_timeout:
+            self._pause_combat_timer()
+            return -3
+        return 0
 
     def init_window(self, outer_window_box=None):
         self.game_window.init_window(outer_window_box)
@@ -95,6 +136,12 @@ class Env:
         click(x2 - 10, y2 - 10)
 
     def reset(self):
+        self.last_reward = 0.0
+        self.reward_terms = {}
+        self.last_step_info = {}
+        self._episode_done = False
+        self._reset_combat_timer()
+        self.player = None
         self.action_manager.reset()
         self.fps_calculator.reset()
         self.enemy_list = EnemyList()
@@ -105,13 +152,18 @@ class Env:
         self.move_index = None
         self.move_end = None
 
-        self.update()
+        status_code = self.update()
+        if status_code:
+            self._episode_done = True
+            return np.zeros(self.state_space, dtype=np.float32), status_code
         self.render()
 
         map_index = self.game_window.get_map_index_at_start()
         self.map.reset(map_index)
+        self._reset_combat_timer()
 
         status_code = self.try_next_level()
+        self._episode_done = status_code != 0
         state = self.state_encode()
         print("游戏开始！大地图：", map_index)
 
@@ -120,16 +172,19 @@ class Env:
     def update(self) -> int:
         """更新感知、实体跟踪及战斗状态，供智能体和自动寻路共用。"""
         status_code = self.game_window.update()
-        start_time = time.time()
+        start_time = time.monotonic()
+        if status_code == -1:
+            self._pause_combat_timer()
         while status_code == -1:
             time.sleep(0.1)
             status_code = self.game_window.update()
 
-            if time.time() - start_time > self.timeout:
-                raise TimeoutError("Loading timeout")
+            if status_code == -1 and time.monotonic() - start_time >= self.timeout:
+                return -4
 
         # 结算画面没有新的实体检测结果，保留最后一次有效的场景状态。
         if status_code:
+            self._pause_combat_timer()
             return status_code
 
         maze = self.map.get_maze()
@@ -202,7 +257,7 @@ class Env:
         self.map.debug_image = None
 
         self.fps_calculator.trigger(log_to_terminal=not self.render_enabled)
-        return status_code
+        return self._update_combat_timer()
 
     def update_navigation(self):
         """按当前观测生成自动战斗寻路使用的危险图。"""
@@ -214,22 +269,91 @@ class Env:
         if status_code:
             return status_code
 
-        self.try_start_level()  # 含有update
+        status_code = self.try_start_level()  # 含有update
+        if status_code:
+            return status_code
         status_code = self.try_next_level()  # 含有update
 
         return status_code
 
     def step(self, action):
-        """执行智能体动作，刷新观测，并由静态地图寻路完成清场后的过关。"""
-        self.action_manager.take_action(action)
-        self.render()
-        status_code = self.update()
-        if status_code:
-            return status_code
+        """执行动作并计算奖励；为兼容推理调用，仍返回 status_code。
 
-        status_code = self.try_next_level()
-        self.new_level = False
+        奖励保存在 last_reward/reward_terms；训练可调用 step_with_reward。
+        自动过关接管前截取开火、静止和撞墙分项，防止导航动作覆盖它们。
+        """
+        if not isinstance(action, (int, np.integer)) or not 0 <= action < self.action_space:
+            raise ValueError(f"Invalid action: {action}")
+        if self._episode_done:
+            raise RuntimeError("Episode finished; call reset() before step()")
+        started = time.monotonic()
+        self.last_reward = 0.0
+        self.reward_terms = {}
+        self.last_step_info = {}
+        level_before = self.map.level
+        hp_before = self.game_window.hit_point
+        position_before = self._reward_position()
+        wall_collision = bool(self.player is not None and self.map.is_move_collision(self.player, action))
+        self.action_manager.take_action(action)
+        fire_reward = float(self.action_manager.fire_reward)
+        self.render()
+        hp_lost = 0.0
+        stationary = False
+        error = None
+        try:
+            status_code = self.update()
+            if status_code == 0:
+                hp_after_action = self.game_window.hit_point
+                hp_lost = max(0, hp_before - hp_after_action)
+                position_after = self._reward_position()
+                if position_before is not None and position_after is not None and self.map.level == level_before:
+                    displacement = np.hypot(
+                        position_after[0] - position_before[0], position_after[1] - position_before[1]
+                    )
+                    stationary = displacement <= self.reward_config.stationary_threshold
+                status_code = self.try_next_level()
+                if status_code == 0:
+                    hp_lost += max(0, hp_after_action - self.game_window.hit_point)
+                self.new_level = False
+        except TimeoutError as exc:
+            # 引擎问题截断，不归因于智能体。
+            status_code = -4
+            error = str(exc)
+
+        levels_passed = max(0, self.map.level - level_before) if level_before >= 1 else 0
+        self.reward_terms = calculate_reward(
+            self.reward_config, fire_reward=fire_reward, stationary=stationary,
+            wall_collision=wall_collision, hp_lost=hp_lost,
+            levels_passed=levels_passed, status=status_code,
+        )
+        self.last_reward = float(sum(self.reward_terms.values()))
+        if status_code:
+            self._pause_combat_timer()
+        self.last_step_info = {
+            "status_code": status_code,
+            "reward_terms": dict(self.reward_terms),
+            "elapsed_seconds": time.monotonic() - started,
+            "combat_elapsed_seconds": self.combat_elapsed_seconds,
+            "transition_valid": status_code != -4,
+        }
+        if error is not None:
+            self.last_step_info["error"] = error
+        self._episode_done = status_code != 0
         return status_code
+
+    def _reward_position(self):
+        if self.player is None:
+            return None
+        # 使用检测位置而非 find_nearest_passable_point 修正位置，避免撞墙被投影掩盖。
+        return self.player.xn * MAZE_WIDTH, self.player.yn * MAZE_HEIGHT
+
+    def step_with_reward(self, action):
+        """返回 (obs, reward, terminated, truncated, info)，不额外执行动作。"""
+        status_code = self.step(action)
+        return (
+            self.state_encode(), self.last_reward,
+            status_code in (1, -2), status_code in (-3, -4), dict(self.last_step_info),
+        )
 
     def try_start_level(self):
         def loop_act(direction):
@@ -237,11 +361,13 @@ class Env:
             self.render()
 
             time.sleep(0.035)
-            self.update()
+            return self.update()
 
         while self.new_level:
             if self.map.get_task() == 5:
-                loop_act(None)
+                status_code = loop_act(None)
+                if status_code:
+                    return status_code
                 if not self.enemy_list:
                     continue
                 if self.map.map_index == 1:
@@ -255,31 +381,41 @@ class Env:
                     direction = Direction.Down
                     self.action_manager.take_action_direction(direction)
                     time.sleep(1)
+                    status_code = self.update()
+                    if status_code:
+                        return status_code
             elif self.map.map_index == 4:
                 if self.map.level == 1:
-                    loop_act(Direction.DownLeft)
+                    status_code = loop_act(Direction.DownLeft)
+                    if status_code:
+                        return status_code
                     if self.player.xn > 0.75:
                         continue
                 elif self.map.level == 2:
                     direction = Direction.Left
-                    loop_act(direction)
+                    status_code = loop_act(direction)
+                    if status_code:
+                        return status_code
                     if self.player.xn > 0.3:
                         continue
             elif self.map.map_index == 5:
                 if self.map.level == 2:
                     direction = Direction.Left
-                    loop_act(direction)
+                    status_code = loop_act(direction)
+                    if status_code:
+                        return status_code
                     if self.player.xn > 0.3:
                         continue
 
             self.new_level = False
+        return 0
 
     def can_next_level(self):
         return len(self.enemy_list) == 0 and len(self.bullets) == 0
 
     def try_next_level(self):
         """使用静态地图拾取掉落物、前往出口，不计算战斗危险图。"""
-        loop_start_time = time.time()
+        loop_start_time = time.monotonic()
         while self.can_next_level() and not self.new_level:
             direction, path = self.map.get_next_direction(self.player, self.falling_items)
             self.render(path)
@@ -288,8 +424,8 @@ class Env:
 
             if status_code:
                 return status_code
-            if time.time() - loop_start_time > self.stay_timeout:
-                return -3
+            if time.monotonic() - loop_start_time >= self.stay_timeout and self.can_next_level() and not self.new_level:
+                return -4
 
         return 0
 

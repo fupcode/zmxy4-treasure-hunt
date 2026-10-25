@@ -64,6 +64,7 @@ class ActionManager:
         self.fire_interval = 0.6
         self.pao = False
         self.last_direction = None
+        self.fire_reward = 0
 
     def _can_fire(self):
         return time.time() - self.last_fire_time > self.fire_interval

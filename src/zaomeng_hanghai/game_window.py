@@ -126,8 +126,8 @@ class GameWindow:
             print("Failed.")
             self.click_normal(0.4, 0.712)
             time.sleep(3)
-        elif status == -3:
-            print("Stay Time Out.")
+        elif status in (-3, -4):
+            print("Combat Time Out." if status == -3 else "Engine Time Out.")
             self.click_normal(0.8, 0.08)
             time.sleep(3)
             self.start_hanghai()

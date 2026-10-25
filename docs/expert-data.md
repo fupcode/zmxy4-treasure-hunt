@@ -125,6 +125,10 @@ D:\project\personal\zaomeng\zaomeng-hanghai\data\expert\20261024_160000_ab12cd34
 | `-3` | 超时，包括过关/开局接管超时或整局时间预算耗尽 |
 | `-4` | 采集异常或中断，仅记入清单，不保存当前局 NPZ |
 
+以上是已有 schema_version=1 采集文件的历史状态码语义，不修改已有数据。
+当前 `Env` 已将 `-3` 专用于单关战斗超时，`-4` 用于加载/自动过关等引擎截断；
+新采集逻辑应将引擎故障作为丢弃局处理。BC 读取器仍会跳过 `status=-4` 的局。
+
 `config.json` 当前 `schema_version=1`，声明 60 维观测、动作和阶段映射，以及采集过滤规则。
 
 `progress.json` 包含：

@@ -407,13 +407,33 @@ class Map:
         return up_pos if up_pos != -1 else up, down_pos if down_pos != -1 else down
 
     def is_move_collision(self, player, action):
+        """检查下一小步的整段路径及斜向夹角，不把静止动作当作左上。"""
+        if not isinstance(action, (int, np.integer)) or not 0 <= action <= len(move_list):
+            raise ValueError(f"Invalid action: {action}")
+        if action == 0:
+            return False
         dx, dy = move_list[action - 1]
         dx *= int(0.012 * MAZE_WIDTH)
         dy *= int(0.016 * MAZE_HEIGHT)
-        target_point = (player.x + dx, player.y + dy)
-        if self.get_maze()[target_point[1], target_point[0]] or self.map_template_without_exit[
-            target_point[1], target_point[0]]:
-            return True
+        maze = self.get_maze()
+        height, width = maze.shape
+
+        def blocked(x, y):
+            # 必须先查边界，避免负下标环绕或越界异常。
+            return (not (0 <= x < width and 0 <= y < height)
+                    or maze[y, x] or self.map_template_without_exit[y, x])
+
+        steps = max(abs(dx), abs(dy))
+        previous_x, previous_y = player.x, player.y
+        for index in range(1, steps + 1):
+            x = player.x + round(dx * index / steps)
+            y = player.y + round(dy * index / steps)
+            if blocked(x, y):
+                return True
+            if x != previous_x and y != previous_y:
+                if blocked(previous_x, y) or blocked(x, previous_y):
+                    return True
+            previous_x, previous_y = x, y
         return False
 
     def get_direction_from_next_point(self, player, next_point):

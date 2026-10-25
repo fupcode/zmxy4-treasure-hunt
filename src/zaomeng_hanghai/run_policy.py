@@ -14,15 +14,18 @@ def main(argv=None):
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--stochastic", action="store_true")
     parser.add_argument("--max-episode-seconds", type=float, default=300)
+    parser.add_argument("--combat-timeout", type=float, default=120, help="同一关累计战斗时限（秒）")
     args = parser.parse_args(argv)
     if args.episodes <= 0 or not 0 < args.max_episode_seconds < float("inf"):
         parser.error("episodes and max-episode-seconds must be positive and finite")
+    if not 0 < args.combat_timeout < float("inf"):
+        parser.error("combat-timeout must be positive and finite")
     model = load_policy(args.checkpoint, args.device)
     # 离线训练与 --help 不导入窗口、检测器和按键控制依赖。
     from .env import Env
     from .core.action_manager import key_up_all, key_up
 
-    env = Env(render_enabled=args.render)
+    env = Env(render_enabled=args.render, combat_timeout=args.combat_timeout)
     try:
         env.init_window()
         for episode in range(args.episodes):
@@ -30,7 +33,9 @@ def main(argv=None):
             state, status = env.reset()
             while status == 0:
                 if time.monotonic() - started > args.max_episode_seconds:
-                    status = -3
+                    # 外部运行预算属于执行截断，不能冒充单关战斗超时。
+                    status = -4
+                    print("Episode wall-clock budget exhausted", flush=True)
                     break
                 action = model.predict(state, deterministic=not args.stochastic)
                 status = env.step(action)

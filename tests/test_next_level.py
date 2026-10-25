@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 from zaomeng_hanghai.core.entities import Bullets, Enemy, EnemyList, FallingItems
 from zaomeng_hanghai.core.map import Map
 from zaomeng_hanghai.core.onnx_model import DetectionResult
+from zaomeng_hanghai.core.rewards import RewardConfig
 from zaomeng_hanghai.env import Env
 
 
@@ -15,6 +16,8 @@ class NextLevelTests(unittest.TestCase):
         for status in (0, 1, -2):
             with self.subTest(status=status):
                 env = Env.__new__(Env)
+                env.combat_timeout = 120
+                env._reset_combat_timer()
                 env.new_level = False
                 env.stay_timeout = 30
                 env.player = Mock()
@@ -35,6 +38,8 @@ class NextLevelTests(unittest.TestCase):
         for enemies, bullets in ((0, 0), (1, 0), (0, 1)):
             with self.subTest(enemies=enemies, bullets=bullets):
                 env = Env.__new__(Env)
+                env.combat_timeout = 120
+                env._reset_combat_timer()
                 env.player = None
                 env.render_enabled = False
                 env.fps_calculator = Mock()
@@ -58,6 +63,11 @@ class NextLevelTests(unittest.TestCase):
 
     def test_agent_step_updates_encoded_state_and_keeps_next_level_handler(self):
         env = Env.__new__(Env)
+        env.action_space = 9
+        env.combat_timeout = 120
+        env._reset_combat_timer()
+        env.reward_config = RewardConfig()
+        env._episode_done = False
         env.render_enabled = False
         env.player = None
         env.new_level = False
@@ -65,6 +75,7 @@ class NextLevelTests(unittest.TestCase):
         env.bullets = Bullets()
         env.falling_items = FallingItems()
         env.action_manager = Mock()
+        env.action_manager.fire_reward = 0.0
         env.action_manager.get_fire_cool_down.return_value = 0.3
         env.fps_calculator = Mock()
         env.render = Mock()

@@ -88,6 +88,7 @@ class StateEncodingTests(unittest.TestCase):
     def test_terminal_update_skips_scene_processing(self):
         for status in (1, -2):
             env = self.make_env(level=4, task=8)
+            env._reset_combat_timer()
             env.game_window.update = Mock(return_value=status)
             env.map.get_maze = Mock(side_effect=AssertionError("终局不应更新地图"))
             self.assertEqual(env.update(), status)

@@ -144,7 +144,14 @@ class Enemy:
         self.x1n, self.y1n, self.x2n, self.y2n = enemy_box.xyxyn
         self.y1n += xywhn[3] / 2
 
-        print(self.x2n - self.x1n, self.y2n - self.y1n)
+        if enemy_box.xywhn[2] > 0.07:
+            # boss
+            horizontal_reduction = 0.006
+        else:
+            horizontal_reduction = 0.002
+
+        self.x1n += horizontal_reduction
+        self.x2n -= horizontal_reduction
 
         self.x1 = int(round(self.x1n * MAZE_WIDTH))
         self.y1 = int(round(self.y1n * MAZE_HEIGHT))

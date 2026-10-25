@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from zaomeng_hanghai.core.map import Map
+from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
 from zaomeng_hanghai.core.maze_utils import (
     find_best_path_to_region,
     find_nearest_passable_path,
@@ -13,6 +14,35 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
+    def test_overlapping_bullet_danger_adds_and_is_order_independent(self):
+        shape = (MAZE_HEIGHT, MAZE_WIDTH)
+        game_map = Map.__new__(Map)
+        game_map.render_enabled = False
+        game_map.map_template_without_exit = np.zeros(shape, dtype=bool)
+        game_map.get_maze = lambda: np.zeros(shape, dtype=bool)
+        game_map.get_distance_maze = lambda: np.ones(shape)
+        player = SimpleNamespace(x=160, y=100)
+
+        def danger(bullets):
+            return game_map.get_flee_maze(player, bullets, [])[2]
+
+        for level in (1, 4):
+            game_map.level = level
+            for direction in range(4):
+                with self.subTest(level=level, direction=direction):
+                    first = SimpleNamespace(x=160, y=100, d=direction)
+                    second = SimpleNamespace(x=163, y=103, d=direction)
+                    first_danger, second_danger = danger([first]), danger([second])
+                    overlap = (first_danger > 0) & (second_danger > 0)
+                    self.assertTrue(overlap.any())
+                    combined = danger([first, second])
+                    np.testing.assert_array_equal(combined, first_danger + second_danger)
+                    np.testing.assert_array_equal(combined, danger([second, first]))
+            bullets = [SimpleNamespace(x=160, y=100, d=direction) for direction in range(4)]
+            expected = sum((danger([bullet]) for bullet in bullets), np.zeros(shape, dtype=np.int64))
+            np.testing.assert_array_equal(danger(bullets), expected)
+            np.testing.assert_array_equal(danger(bullets[::-1]), expected)
+
     def test_coarse_search_is_used_when_target_is_on_five_pixel_grid(self):
         maze = np.zeros((25, 30), dtype=bool)
         targets = np.zeros(maze.shape)

@@ -526,16 +526,16 @@ class Map:
             range_up = max(0, bullet.y - FIRE_Y_RANGE)
             range_down = min(MAZE_HEIGHT, bullet.y + FIRE_Y_RANGE)
             if bullet.d == 0:
-                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, bullet.x:range_right] = np.arange(
+                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, bullet.x:range_right] += np.arange(
                     range_right - bullet.x, 0, -1) + bullet_const
             elif bullet.d == 1:
-                flee_region_bullet[bullet.y:range_down, bullet.x - hit_width:bullet.x + hit_width] = \
+                flee_region_bullet[bullet.y:range_down, bullet.x - hit_width:bullet.x + hit_width] += \
                     np.arange(range_down - bullet.y, 0, -1)[..., np.newaxis] + bullet_const
             elif bullet.d == 2:
-                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, range_left:bullet.x] = np.arange(1,
+                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, range_left:bullet.x] += np.arange(1,
                                                                                                                  bullet.x - range_left + 1) + bullet_const
             elif bullet.d == 3:
-                flee_region_bullet[range_up:bullet.y, bullet.x - hit_width:bullet.x + hit_width] = \
+                flee_region_bullet[range_up:bullet.y, bullet.x - hit_width:bullet.x + hit_width] += \
                     np.arange(1, bullet.y - range_up + 1)[..., np.newaxis] + bullet_const
             moveable_maze[bullet.y - hit_height:bullet.y + hit_height, bullet.x - hit_width:bullet.x + hit_width] = 1
             obstacle_distance_maze[bullet.y - 4 * hit_height:bullet.y + 4 * hit_height,

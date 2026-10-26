@@ -727,11 +727,10 @@ class Map:
         up, down = max(0, player.y - 10), min(height, player.y + 11)
         moveable_maze[up:down, left:right] |= flee_region[up:down, left:right] > 0
 
-        # 视野内只做局部寻路（含 Boss）；无可达终点时原地等待。
+        # 视野内选择局部终点，但允许在整张可通行地图绕路；无路时原地等待。
         if in_vision:
-            peek_maze = moveable_maze | (peek_region_enemy == 0)
             path = maze_utils.find_best_path_to_region(
-                peek_maze, (player.x, player.y), end_peek_region,
+                moveable_maze, (player.x, player.y), end_peek_region,
                 distance_maze=obstacle_distance_maze, hate_factor=5,
             )
             if path:

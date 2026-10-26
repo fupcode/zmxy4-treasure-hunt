@@ -128,7 +128,8 @@ env = Env(reward_config=RewardConfig(stationary=-0.005, wall_collision=-0.2))
 `end_region` 排除所有有效视野覆盖的区域；实际射击仍受墙体、射程与对齐限制。
 
 优先避让在途子弹和贴近敌人的危险，然后根据玩家位置选择终点：视野内只搜索
-局部 `end_peek_region`，局部无路时原地等待，不回退全局；视野外搜索 `end_region`。
+局部 `end_peek_region`，路径可在整张 `moveable_maze` 上绕行，不受视野边界限制；
+局部终点无路时原地等待，不回退全局终点；视野外搜索 `end_region`。
 该规则同样用于 Boss 战，敌人冷却不会清除在途子弹危险。
 
 采集数据默认保存到项目根目录的 `data/expert/<运行目录>/`。

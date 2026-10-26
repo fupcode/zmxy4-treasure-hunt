@@ -77,6 +77,27 @@ class ExpertNavigationTests(unittest.TestCase):
         self.assertEqual(mode, 4)
         self.assertEqual(path[-1], (20, 10))
 
+    def test_local_target_can_be_reached_by_detouring_outside_vision(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        shape = (20, 30)
+        empty = np.zeros(shape)
+        maze = empty.astype(bool)
+        maze[5:15, 15] = True
+        vision = empty.copy()
+        vision[5:15, 5:25] = 1
+        targets = empty.copy()
+        targets[10, 20] = 0.9
+        game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
+                               vision, targets > 0, targets, empty)
+        direction, path, mode = game_map.get_shot_place_direction(
+            SimpleNamespace(x=10, y=10), None, None)
+        self.assertIsNotNone(direction)
+        self.assertEqual(mode, 3)
+        self.assertEqual(path[-1], (20, 10))
+        self.assertTrue(any(vision[y, x] == 0 for x, y in path))
+        self.assertTrue(all(not maze[y, x] for x, y in path))
+
     def test_overlapping_bullet_danger_adds_and_is_order_independent(self):
         shape = (MAZE_HEIGHT, MAZE_WIDTH)
         game_map = Map.__new__(Map)

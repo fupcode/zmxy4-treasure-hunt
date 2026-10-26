@@ -262,54 +262,41 @@ class GameWindow:
         return falling_items
 
     def filter_bullet(self, det):
-        window_image_hls = np.zeros(self.window_image.shape, np.uint8)
-        height, width = self.window_image.shape[:2]
-        for bullet_box in det['bullet']:
-            x1, y1, x2, y2 = bullet_box.xyxyn
-            crop_box = (int(round(x1 * width)), int(round(y1 * height)),
-                        int(round(x2 * width)), int(round(y2 * height)))
+        if not det['bullet']:
+            return []
+        hls = cv2.cvtColor(self.window_image, cv2.COLOR_RGB2HLS)
+        return self.detect_bullet_normal(hls, det['bullet'])
 
-            image = self.crop_image_by_box(self.window_image, crop_box)
-
-            if image is None or image.size == 0:
-                continue
-
-            hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
-            window_image_hls[crop_box[1]:crop_box[3], crop_box[0]:crop_box[2]] = hls
-        bullet_list_normal = self.detect_bullet_normal(window_image_hls)
-
-        return bullet_list_normal
-
-    def detect_bullet_normal(self, hls_image):
+    def detect_bullet_normal(self, hls_image, bullet_boxes):
+        """仅提取 YOLO 框内的主要弹头，以其相对框中心的偏移判定方向。"""
         height, width, _ = hls_image.shape
-
-        fire_lower = np.array([6, 60, 80])
-        fire_upper = np.array([12, 220, 220])
-        fire_mask = cv2.inRange(hls_image, fire_lower, fire_upper)
-
         head_lower = np.array([12, 70, 5])
         head_upper = np.array([32, 120, 30])
-        head_mask = cv2.inRange(hls_image, head_lower, head_upper)
-
-        contours, _ = cv2.findContours(fire_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        head_contours, _ = cv2.findContours(head_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        min_area = height * width * 0.0002  # Window Area 1948772
         bullet_list = []
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if w * h < min_area:
+        for box in bullet_boxes:
+            x1n, y1n, x2n, y2n = box.xyxyn
+            x1, x2 = np.clip([int(round(x1n * width)), int(round(x2n * width))], 0, width)
+            y1, y2 = np.clip([int(round(y1n * height)), int(round(y2n * height))], 0, height)
+            if x2 <= x1 or y2 <= y1:
                 continue
-
-            r = self.get_centroid_and_direction(contour, head_contours)
-            if r is None:
+            head_mask = cv2.inRange(hls_image[y1:y2, x1:x2], head_lower, head_upper)
+            contours, _ = cv2.findContours(head_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
                 continue
-
-            x, y, d = r
-            xn = x / width
-            yn = y / height
-            bullet_list.append((xn, yn, d))
-
+            # 用最大有效弹头抑制框边缘的孤立噪点，每个检测框最多生成一颗子弹。
+            head = max(contours, key=cv2.contourArea)
+            if cv2.contourArea(head) <= 0:
+                continue
+            x, y, w, h = cv2.boundingRect(head)
+            xc, yc = x1 + x + w / 2, y1 + y + h / 2
+            dx, dy = xc - (x1 + x2) / 2, yc - (y1 + y2) / 2
+            if dx == 0 and dy == 0:
+                continue  # 正好位于框中心时无法根据当前帧确定方向。
+            if abs(dx) >= abs(dy):
+                direction = 0 if dx > 0 else 2
+            else:
+                direction = 1 if dy > 0 else 3
+            bullet_list.append((xc / width, yc / height, direction))
         return bullet_list
 
     def detect_item(self, window_image):

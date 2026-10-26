@@ -629,8 +629,16 @@ class Map:
                 offset = (np.arange(up, down) - bullet.y) * (1 if bullet.d == 1 else -1)
                 weights = np.maximum(1, FIRE_Y_RANGE + 1 - offset)[:, None]
             flee_region_bullet[up:down, left:right] += weights + bullet_const
-            moveable_maze[max(0, bullet.y - hit_height):min(MAZE_HEIGHT, bullet.y + hit_height + 1),
-                          max(0, bullet.x - hit_width):min(MAZE_WIDTH, bullet.x + hit_width + 1)] = True
+            collision_left = max(0, bullet.x - hit_width)
+            collision_right = min(MAZE_WIDTH, bullet.x + hit_width + 1)
+            collision_up = max(0, bullet.y - hit_height)
+            collision_down = min(MAZE_HEIGHT, bullet.y + hit_height + 1)
+            # 已覆盖玩家的子弹只保留危险成本，避免起点被动态硬障碍困住。
+            # 仅跳过本颗子弹的障碍写入，不清除静态墙或其他子弹的障碍。
+            player_inside = (collision_left <= player.x < collision_right
+                             and collision_up <= player.y < collision_down)
+            if not player_inside:
+                moveable_maze[collision_up:collision_down, collision_left:collision_right] = True
             obstacle_distance_maze[max(0, bullet.y - 4 * hit_height):min(MAZE_HEIGHT, bullet.y + 4 * hit_height + 1),
                                    max(0, bullet.x - 4 * hit_width):min(MAZE_WIDTH, bullet.x + 4 * hit_width + 1)] = 0
 

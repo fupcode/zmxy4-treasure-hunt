@@ -47,7 +47,9 @@ class ExpertNavigationTests(unittest.TestCase):
                     regions = game_map.get_flee_maze(player, [bullet], [])
                     danger, blocked, distances = regions[2], regions[0], regions[1]
                     self.assertGreater(danger[y, x], 0)
-                    self.assertTrue(blocked[y, x])
+                    player_inside = (abs(player.x - x) <= BULLET_AVOID_WIDTH
+                                     and abs(player.y - y) <= BULLET_AVOID_HEIGHT)
+                    self.assertEqual(bool(blocked[y, x]), not player_inside)
                     self.assertEqual(distances[y, x], 0)
                     left, up, right, down = game_map.get_bullet_danger_bounds(bullet)
                     expected = np.zeros(shape, dtype=bool)
@@ -77,6 +79,40 @@ class ExpertNavigationTests(unittest.TestCase):
         self.assertGreater(danger[100 + HIT_HEIGHT, 160], 0)
         self.assertEqual(danger[100 + HIT_HEIGHT + 1, 160], 0)
         self.assertGreater(danger[max(0, 100 - FIRE_Y_RANGE), 160], 0)
+
+    def test_overlapping_player_bullets_remain_costs_and_allow_escape(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        game_map.render_enabled = False
+        shape = (MAZE_HEIGHT, MAZE_WIDTH)
+        maze = np.zeros(shape, dtype=bool)
+        maze[125, 45] = True
+        game_map.get_maze = lambda: maze
+        game_map.get_distance_maze = lambda: np.ones(shape)
+        game_map.map_template_without_exit = np.zeros(shape, dtype=bool)
+        player = SimpleNamespace(x=42, y=128)
+        overlapping = [SimpleNamespace(x=57, y=125, d=2),
+                       SimpleNamespace(x=59, y=119, d=1)]
+        other = SimpleNamespace(x=80, y=150, d=2)
+        game_map.update(player, overlapping + [other], [])
+        regions = game_map.flee_mazes
+        self.assertFalse(regions[0][player.y, player.x])
+        self.assertTrue(regions[0][125, 45])  # 静态墙仍然保留。
+        self.assertTrue(regions[0][other.y, other.x])
+        self.assertGreater(regions[2][player.y, player.x], 0)
+        for order in (overlapping + [other], [other] + overlapping[::-1]):
+            actual = game_map.get_flee_maze(player, order, [])
+            np.testing.assert_array_equal(actual[0], regions[0])
+            np.testing.assert_array_equal(actual[2], regions[2])
+        direction, path, mode = game_map.get_shot_place_direction(player, None, None)
+        self.assertIsNotNone(direction)
+        self.assertEqual(mode, 1)
+        self.assertTrue(path)
+        self.assertEqual(regions[2][path[-1][1], path[-1][0]], 0)
+        self.assertTrue(all(not regions[0][y, x] for x, y in path))
+        # 玩家撤出后重新生成地图，这两颗子弹恢复为硬障碍。
+        rebuilt = game_map.get_flee_maze(SimpleNamespace(x=120, y=60), overlapping, [])
+        self.assertTrue(rebuilt[0][128, 42])
 
     def test_shooting_blocks_only_danger_in_ten_cell_square(self):
         shape = (40, 50)

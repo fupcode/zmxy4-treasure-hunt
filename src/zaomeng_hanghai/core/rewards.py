@@ -18,6 +18,10 @@ class RewardConfig:
     level_speed: float = 10.0
     # 消耗一整关战斗时限的累计成本，按时间比例分摊到各步。
     combat_time: float = -10.0
+    single_target_fire: float = 0.2
+    # 距离敌人碰撞框不足此像素数时，按平方权重累计每秒成本。
+    enemy_proximity_distance: float = 24.0
+    enemy_proximity_per_second: float = -1.0
 
 
 def calculate_reward(
@@ -25,10 +29,20 @@ def calculate_reward(
     wall_collision: bool, hp_lost: float, levels_passed: int, status: int,
     level_time_ratio: float | None = None,
     combat_time_fraction: float = 0.0,
+    fire_target_count: int = 0,
+    enemy_proximity_weight: float = 0.0,
+    agent_combat_seconds: float = 0.0,
 ) -> dict[str, float]:
     """返回可相加的奖励分项。撞墙时不再叠加静止惩罚。"""
     terms = {
         "fire": float(fire_reward),
+        "single_target_fire": (
+            config.single_target_fire if fire_reward > 0 and fire_target_count == 1 else 0.0
+        ),
+        "enemy_proximity": (
+            config.enemy_proximity_per_second * max(0.0, enemy_proximity_weight)
+            * max(0.0, agent_combat_seconds)
+        ),
         "step": config.step,
         "combat_time": config.combat_time * max(0.0, combat_time_fraction),
         "stationary": config.stationary if stationary and not wall_collision else 0.0,

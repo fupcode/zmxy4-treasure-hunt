@@ -79,6 +79,7 @@ class RewardTests(unittest.TestCase):
         env._episode_done = False
         env.player = SimpleNamespace(x=100, y=100, xn=100 / MAZE_WIDTH, yn=100 / MAZE_HEIGHT)
         env.map = empty_map()
+        env.enemy_list = []
         env.game_window = SimpleNamespace(hit_point=4)
         env.action_manager = SimpleNamespace(take_action=Mock(), fire_reward=fire_reward)
         env.render = Mock()
@@ -90,7 +91,7 @@ class RewardTests(unittest.TestCase):
 
     def test_fire_reward_and_neutral_cooldown(self):
         for ready, direction, expected in (
-            (True, Direction.Right, 1), (True, None, -0.05),
+            (True, Direction.Right, 1), (True, None, 0),
             (False, Direction.Right, 0), (False, None, 0),
         ):
             manager = ActionManager()
@@ -116,6 +117,78 @@ class RewardTests(unittest.TestCase):
         # 选移动但实际没走，默认也不惩罚静止。
         env.step(1)
         self.assertEqual(env.reward_terms["stationary"], 0)
+
+    def test_single_target_bonus_uses_scene_at_actual_fire(self):
+        for fired, count, expected in ((1, 1, 0.2), (0, 1, 0), (1, 2, 0), (1, 0, 0)):
+            with self.subTest(fired=fired, count=count):
+                env = self.make_env(fire_reward=fired)
+                # 对齐且无遮挡，但距离超过近距离阈值。
+                env.enemy_list = [SimpleNamespace(x=150, y=100, x1=145, x2=155,
+                                                 y1=95, y2=105) for _ in range(count)]
+                def move_away():
+                    env.player.y = 130
+                    env.enemy_list = []
+                    return 0
+                env.update.side_effect = move_away
+                env.step(4)
+                self.assertEqual(env.reward_terms["single_target_fire"], expected)
+                self.assertEqual(env.last_step_info["fire_target_count"], count)
+                self.assertAlmostEqual(env.last_reward, fired + expected)
+
+    def test_proximity_stacks_by_seconds_and_excludes_navigation(self):
+        for steps in (1, 10):
+            env = self.make_env()
+            # 两个框都距玩家 12 像素，各自产生 0.25 权重。
+            env.enemy_list = [SimpleNamespace(x=117, y=100, x1=112, x2=122,
+                                             y1=95, y2=105) for _ in range(2)]
+            total = 0
+            for _ in range(steps):
+                def advance():
+                    env._combat_elapsed += 1 / steps
+                    return 0
+                def navigate():
+                    env._combat_elapsed += 5
+                    env.enemy_list = []
+                    return 0
+                env.update.side_effect = advance
+                env.try_next_level.side_effect = navigate
+                # 保持下一步的相同场景，导航耗时不应被距离项计费。
+                enemies = list(env.enemy_list)
+                env.step(0)
+                total += env.reward_terms["enemy_proximity"]
+                env.enemy_list = enemies
+            self.assertAlmostEqual(total, -0.5)
+
+    def test_proximity_distance_boundaries_and_wall(self):
+        env = self.make_env()
+        enemy = SimpleNamespace(x=117, y=100, x1=112, x2=122, y1=95, y2=105)
+        self.assertEqual(env.map.enemy_proximity_distance(env.player, enemy), 12)
+        env.map.get_maze()[100, 106] = True
+        self.assertIsNone(env.map.enemy_proximity_distance(env.player, enemy))
+        env.map.get_maze().fill(False)
+        env.player.x = 115
+        self.assertEqual(env.map.enemy_proximity_distance(env.player, enemy), 0)
+        env.player.x, env.player.y = 109, 91
+        self.assertEqual(env.map.enemy_proximity_distance(env.player, enemy), 5)
+
+    def test_proximity_weight_threshold_and_engine_failure(self):
+        for distance, weight in ((0, 1), (12, 0.25), (24, 0), (30, 0)):
+            env = self.make_env(fire_reward=1)
+            env.enemy_list = [SimpleNamespace(x=105 + distance, y=100,
+                                             x1=100 + distance, x2=110 + distance,
+                                             y1=95, y2=105)]
+            def advance():
+                env._combat_elapsed = 1
+                return 0
+            env.update.side_effect = advance
+            env.step(0)
+            self.assertAlmostEqual(env.reward_terms["enemy_proximity"], -weight)
+        terms = calculate_reward(
+            RewardConfig(), fire_reward=1, stationary=False, wall_collision=False,
+            hp_lost=0, levels_passed=0, status=-4, fire_target_count=1,
+            enemy_proximity_weight=2, agent_combat_seconds=1,
+        )
+        self.assertTrue(all(value == 0 for value in terms.values()))
 
     def test_free_movement_and_wall_collision(self):
         env = self.make_env(fire_reward=1)

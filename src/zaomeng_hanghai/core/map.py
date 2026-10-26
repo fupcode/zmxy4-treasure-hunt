@@ -381,6 +381,21 @@ class Map:
         in_range = abs(position - center) <= limit
         return in_range, in_range and not blocked
 
+    def enemy_proximity_distance(self, player, enemy):
+        """玩家到敌人碰撞框的欧氏距离；最短连线被墙阻隔时不计接触风险。"""
+        x = float(np.clip(player.x, enemy.x1, enemy.x2))
+        y = float(np.clip(player.y, enemy.y1, enemy.y2))
+        dx, dy = x - player.x, y - player.y
+        count = int(np.ceil(max(abs(dx), abs(dy)))) + 1
+        xs = np.rint(np.linspace(player.x, x, count)).astype(int)
+        ys = np.rint(np.linspace(player.y, y, count)).astype(int)
+        maze = self.get_maze()
+        if (np.any(xs < 0) or np.any(xs >= maze.shape[1])
+                or np.any(ys < 0) or np.any(ys >= maze.shape[0])
+                or np.any(maze[ys, xs])):
+            return None
+        return float(np.hypot(dx, dy))
+
     def fire_direction(self, player, enemy_list):
         min_distance = MAZE_HEIGHT + MAZE_WIDTH
         direction = None

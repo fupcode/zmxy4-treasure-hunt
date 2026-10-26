@@ -355,16 +355,33 @@ class Env:
         hp_before = self.game_window.hit_point
         position_before = self._reward_position()
         wall_collision = bool(self.player is not None and self.map.is_move_collision(self.player, action))
+        # 开火先于移动，目标数量和距离使用开火时的场景；不受自动导航覆盖。
+        fire_target_count = 0
+        enemy_proximity_weight = 0.0
+        if self.player is not None and 1 <= level_before <= 4:
+            for enemy in self.enemy_list:
+                if enemy is None:
+                    continue
+                fire_target_count += int(self.map.enemy_fire_flags(self.player, enemy)[1])
+                distance = self.map.enemy_proximity_distance(self.player, enemy)
+                radius = self.reward_config.enemy_proximity_distance
+                if distance is not None and radius > 0:
+                    enemy_proximity_weight += max(0.0, 1.0 - distance / radius) ** 2
         self.action_manager.take_action(action)
         fire_reward = float(self.action_manager.fire_reward)
         self.render()
         hp_lost = 0.0
         stationary = False
         error = None
+        agent_combat_seconds = 0.0
         try:
             status_code = self.update()
             if self.map.level == level_before:
                 level_elapsed = self.combat_elapsed_seconds
+                agent_combat_seconds = max(
+                    0.0, min(level_elapsed, self.combat_timeout)
+                    - min(combat_elapsed_before, self.combat_timeout),
+                )
             if status_code == 0:
                 hp_after_action = self.game_window.hit_point
                 hp_lost = max(0, hp_before - hp_after_action)
@@ -410,6 +427,9 @@ class Env:
             levels_passed=levels_passed, status=status_code,
             level_time_ratio=level_time_ratio,
             combat_time_fraction=combat_time_fraction,
+            fire_target_count=fire_target_count,
+            enemy_proximity_weight=enemy_proximity_weight,
+            agent_combat_seconds=agent_combat_seconds,
         )
         self.last_reward = float(sum(self.reward_terms.values()))
         self.last_step_info = {
@@ -419,6 +439,9 @@ class Env:
             "combat_elapsed_seconds": self.combat_elapsed_seconds,
             "level_time_ratio": level_time_ratio,
             "combat_time_fraction": combat_time_fraction,
+            "fire_target_count": fire_target_count,
+            "enemy_proximity_weight": enemy_proximity_weight,
+            "agent_combat_seconds": agent_combat_seconds,
             "transition_valid": status_code != -4,
         }
         if error is not None:

@@ -138,8 +138,8 @@ class ActionManager:
     def fire(self):
         if self._can_fire():
             if self.fire_direction is None:
-                # 能开火，没有开火机会，扣小分
-                self.fire_reward = -0.05
+                # 寻找射击位置或撤离射击线不扣分。
+                self.fire_reward = 0.0
                 return 0
 
             # 能开火，有开火机会，奖励1分

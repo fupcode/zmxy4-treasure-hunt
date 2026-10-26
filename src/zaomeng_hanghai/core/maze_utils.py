@@ -193,7 +193,7 @@ def _coarse_to_fine_region_path(maze, start, targets, distance_maze, hate_factor
 
 
 def find_nearest_passable_path(maze, start, flee_region, distance_maze=None, hate_factor=1,
-                               last_direction=None, turn_cost=1.0):
+                               last_direction=None, turn_cost=4.0):
     """先以 5 格寻找脱险路径，失败后以 1 格重试。"""
     return _coarse_to_fine_region_path(maze, start, (flee_region == 0).astype(np.float32),
                               distance_maze, hate_factor, danger=flee_region,

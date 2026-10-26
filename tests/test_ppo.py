@@ -236,15 +236,15 @@ class PPOTests(unittest.TestCase):
         ]))
         self.assertEqual(trainer.model.model_config["hidden_sizes"], [16])
         self.assertFalse(trainer.optimizer.state)
-        self.assertEqual(environment["combat_timeout"], 30)
-        # 旧存档的时限不能覆盖当前 CLI 的默认 30 秒。
+        self.assertEqual(environment["combat_timeout"], 60)
+        # 旧存档的时限不能覆盖当前 CLI 的默认 60 秒。
         environment["combat_timeout"] = 120
         save_checkpoint(output / "last.pt", trainer, state, environment)
         restored, _, resumed_environment, directory = prepare_training(parser.parse_args([
             "--resume", str(output / "last.pt"), "--device", "cpu", "--learning-rate", "0.002",
         ]))
         self.assertEqual(restored.config.learning_rate, 0.002)
-        self.assertEqual(resumed_environment["combat_timeout"], 30)
+        self.assertEqual(resumed_environment["combat_timeout"], 60)
         self.assertEqual(directory, output)
         _, _, custom_environment, _ = prepare_training(parser.parse_args([
             "--resume", str(output / "last.pt"), "--device", "cpu", "--combat-timeout", "45",

@@ -188,7 +188,7 @@ def build_parser():
         parser.add_argument("--" + name.replace("_", "-"), type=int, default=None)
     for name in ("learning_rate", "gamma", "gae_lambda", "clip_range", "entropy_coef", "value_coef", "max_grad_norm", "target_kl"):
         parser.add_argument("--" + name.replace("_", "-"), type=float, default=None)
-    parser.add_argument("--combat-timeout", type=float, default=30, help="每关战斗时限，训练和续训均默认 30 秒，覆盖存档中的时限")
+    parser.add_argument("--combat-timeout", type=float, default=60, help="每关战斗时限，训练和续训均默认 60 秒，覆盖存档中的时限")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42, help="新训练随机种子；续训恢复存档中的随机状态")
@@ -218,7 +218,7 @@ def prepare_training(args):
         model = load_policy(args.init, device) if args.init else ActorCritic(hidden_sizes=args.hidden_sizes or (256, 256, 256)).to(device)
         trainer = PPOTrainer(model, PPOConfig(**overrides))
         state = TrainingState()
-        env_config = {"timeout": 5, "stay_timeout": 30, "combat_timeout": 30}
+        env_config = {"timeout": 5, "stay_timeout": 30, "combat_timeout": 60}
     if args.combat_timeout is not None:
         env_config["combat_timeout"] = args.combat_timeout
     output = args.output or (args.resume.resolve().parent if args.resume else Path("runs/ppo") / (

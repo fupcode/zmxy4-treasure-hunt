@@ -8,8 +8,8 @@ import numpy as np
 
 from zaomeng_hanghai.core.map import Map
 from zaomeng_hanghai.core.constants import (
-    MAZE_HEIGHT, MAZE_WIDTH, BULLET_AVOID_HEIGHT, BULLET_AVOID_WIDTH, BULLET_MARGIN,
-    FIRE_X_RANGE, FIRE_Y_RANGE,
+    MAZE_HEIGHT, MAZE_WIDTH, BULLET_AVOID_HEIGHT, BULLET_AVOID_WIDTH,
+    FIRE_X_RANGE, FIRE_Y_RANGE, HIT_HEIGHT, HIT_WIDTH,
 )
 from zaomeng_hanghai.core.entities import Bullets
 from zaomeng_hanghai.core.maze_utils import (
@@ -19,19 +19,19 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
-    def test_bullet_passed_threshold_includes_full_avoidance_box(self):
+    def test_bullet_passed_threshold_uses_original_hit_box(self):
         player = SimpleNamespace(x=160, y=100)
         bullets = Bullets()
         for direction, (dx, dy), limit in (
-            (0, (1, 0), BULLET_AVOID_WIDTH), (1, (0, 1), BULLET_AVOID_HEIGHT),
-            (2, (-1, 0), BULLET_AVOID_WIDTH), (3, (0, -1), BULLET_AVOID_HEIGHT),
+            (0, (1, 0), HIT_WIDTH), (1, (0, 1), HIT_HEIGHT),
+            (2, (-1, 0), HIT_WIDTH), (3, (0, -1), HIT_HEIGHT),
         ):
             for distance in (0, limit - 1, limit, limit + 1):
                 bullet = SimpleNamespace(x=player.x + dx * distance,
                                          y=player.y + dy * distance, d=direction)
                 self.assertEqual(bullets.is_safe(bullet, player), distance > limit)
 
-    def test_bullet_rectangles_clip_at_edges_and_cover_tail(self):
+    def test_bullet_rectangles_clip_at_edges_with_hit_tail(self):
         game_map = Map.__new__(Map)
         game_map.level = 1
         game_map.render_enabled = False
@@ -55,14 +55,28 @@ class ExpertNavigationTests(unittest.TestCase):
                     np.testing.assert_array_equal(danger > 0, expected)
         bullet = SimpleNamespace(x=160, y=100, d=0)
         danger = game_map.get_flee_maze(player, [bullet], [])[2]
-        self.assertGreater(danger[100 + BULLET_AVOID_HEIGHT, 160 - BULLET_AVOID_WIDTH], 0)
-        self.assertGreater(danger[100, 160 + FIRE_X_RANGE + BULLET_MARGIN], 0)
+        self.assertGreater(danger[100 + BULLET_AVOID_HEIGHT, 160], 0)
+        self.assertGreater(danger[100, 160 - HIT_WIDTH], 0)
+        self.assertEqual(danger[100, 160 - HIT_WIDTH - 1], 0)
+        self.assertGreater(danger[100, 160 + FIRE_X_RANGE], 0)
         self.assertEqual(danger[100 + BULLET_AVOID_HEIGHT + 1, 160], 0)
         bullet.d = 1
         danger = game_map.get_flee_maze(player, [bullet], [])[2]
-        self.assertGreater(danger[100 - BULLET_AVOID_HEIGHT, 160 + BULLET_AVOID_WIDTH], 0)
-        forward_y = min(MAZE_HEIGHT - 1, 100 + FIRE_Y_RANGE + BULLET_MARGIN)
+        self.assertGreater(danger[100, 160 + BULLET_AVOID_WIDTH], 0)
+        self.assertGreater(danger[100 - HIT_HEIGHT, 160], 0)
+        self.assertEqual(danger[100 - HIT_HEIGHT - 1, 160], 0)
+        forward_y = min(MAZE_HEIGHT - 1, 100 + FIRE_Y_RANGE)
         self.assertGreater(danger[forward_y, 160], 0)
+        bullet.d = 2
+        danger = game_map.get_flee_maze(player, [bullet], [])[2]
+        self.assertGreater(danger[100, 160 + HIT_WIDTH], 0)
+        self.assertEqual(danger[100, 160 + HIT_WIDTH + 1], 0)
+        self.assertGreater(danger[100, 160 - FIRE_X_RANGE], 0)
+        bullet.d = 3
+        danger = game_map.get_flee_maze(player, [bullet], [])[2]
+        self.assertGreater(danger[100 + HIT_HEIGHT, 160], 0)
+        self.assertEqual(danger[100 + HIT_HEIGHT + 1, 160], 0)
+        self.assertGreater(danger[max(0, 100 - FIRE_Y_RANGE), 160], 0)
 
     def test_shooting_blocks_only_danger_in_ten_cell_square(self):
         shape = (40, 50)

@@ -136,10 +136,12 @@ env = Env(reward_config=RewardConfig(stationary=-0.005, wall_collision=-0.2))
 该规则同样用于 Boss 战，敌人冷却不会清除在途子弹危险。
 
 子弹避让使用独立安全余量 `BULLET_MARGIN=3`：横向半宽为
-`HIT_WIDTH + BULLET_MARGIN = 17`，纵向半高为 `HIT_HEIGHT + BULLET_MARGIN = 13`。
-四向危险带横向加宽、前端增加余量，并包含弹体后方的避让矩形；危险值仍逐弹累加。
+`HIT_WIDTH + BULLET_MARGIN`，纵向半高为 `HIT_HEIGHT + BULLET_MARGIN`。
+四向危险带仅增加侧向余量，从子弹中心沿前进方向延伸至 `FIRE_X_RANGE` /
+`FIRE_Y_RANGE`（96 / 100 像素），不增加前端长度；后方延伸原始碰撞半径
+`HIT_WIDTH`（水平移动）或 `HIT_HEIGHT`（垂直移动），不叠加安全余量；危险值仍逐弹累加。
 危险带、弹体障碍和距离成本图的所有切片均裁剪到地图边界，右/下边界包含安全半径端点。
-子弹中心沿运动方向超过玩家横向 17 / 纵向 13 像素后，才可归为已通过的安全子弹，
+子弹中心沿运动方向超过玩家横向 `HIT_WIDTH` / 纵向 `HIT_HEIGHT` 后，才可归为已通过的安全子弹，
 恰好位于边界时仍归为危险。手动碰撞可视化同步显示含余量的范围。
 
 采集数据默认保存到项目根目录的 `data/expert/<运行目录>/`。

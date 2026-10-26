@@ -522,12 +522,12 @@ class Env:
         return len(self.enemy_list) == 0 and len(self.bullets) == 0
 
     def try_next_level(self):
-        """进入新关卡十秒后，使用静态地图拾取掉落物、前往出口。"""
+        """进入新关卡5秒后，使用静态地图拾取掉落物、前往出口。"""
         loop_start_time = time.monotonic()
         while self.can_next_level() and not self.new_level:
             if (
                 self.level_started_at is None
-                or time.monotonic() - self.level_started_at >= 10
+                or time.monotonic() - self.level_started_at >= 5
             ):
                 direction, path = self.map.get_next_direction(self.player, self.falling_items)
                 self.render(path)

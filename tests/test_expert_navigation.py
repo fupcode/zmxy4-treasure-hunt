@@ -41,6 +41,10 @@ class ExpertNavigationTests(unittest.TestCase):
                     self.assertEqual(search.call_count, 1)
                     for invocation in search.call_args_list:
                         np.testing.assert_array_equal(invocation.args[0], expected)
+                        if local_peek:
+                            self.assertIsNone(invocation.kwargs.get('cost_map'))
+                        else:
+                            np.testing.assert_array_equal(invocation.kwargs['cost_map'], 2.0 * peek)
                     self.assertEqual(np.count_nonzero(maze), 1)
 
     def test_local_failure_waits_without_global_fallback_including_boss(self):
@@ -69,10 +73,15 @@ class ExpertNavigationTests(unittest.TestCase):
         empty = np.zeros(shape)
         targets = empty.copy()
         targets[10, 20] = 1
+        vision = empty.copy()
+        vision[5:15, 10:15] = 2
         game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
-                               empty, empty, empty, targets)
-        direction, path, mode = game_map.get_shot_place_direction(
-            SimpleNamespace(x=5, y=10), None, None)
+                               vision, empty, empty, targets)
+        with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
+                   wraps=find_best_path_to_region) as search:
+            direction, path, mode = game_map.get_shot_place_direction(
+                SimpleNamespace(x=5, y=10), None, None)
+        np.testing.assert_array_equal(search.call_args.kwargs['cost_map'], 2.0 * vision)
         self.assertIsNotNone(direction)
         self.assertEqual(mode, 4)
         self.assertEqual(path[-1], (20, 10))
@@ -137,6 +146,39 @@ class ExpertNavigationTests(unittest.TestCase):
         points = [(2, 2)] + path
         for (x1, y1), (x2, y2) in zip(points, points[1:]):
             self.assertEqual(max(abs(x2 - x1), abs(y2 - y1)), 5)
+
+    def test_extra_cost_avoids_expensive_intermediate_cells_on_coarse_path(self):
+        maze = np.zeros((25, 30), dtype=bool)
+        targets = np.zeros(maze.shape)
+        targets[2, 22] = 0.9
+        extra = np.zeros(maze.shape)
+        # x=4 不在粗搜索落脚点上，仍须逐格计费。
+        extra[:10, 4] = 100
+        start = (2, 2)
+        direct = find_best_path_to_region(maze, start, targets, hate_factor=0)
+        detour = find_best_path_to_region(maze, start, targets, hate_factor=0, cost_map=extra)
+        self.assertEqual(direct[-1], (22, 2))
+        self.assertEqual(detour[-1], (22, 2))
+        def extra_cost(path):
+            total = 0
+            for (x1, y1), (x2, y2) in zip([start] + path, path):
+                stride = max(abs(x2 - x1), abs(y2 - y1))
+                dx, dy = (x2 - x1) // stride, (y2 - y1) // stride
+                total += sum(extra[y1 + dy * step, x1 + dx * step]
+                             for step in range(1, stride + 1))
+            return total
+        self.assertGreater(extra_cost(direct), 0)
+        self.assertEqual(extra_cost(detour), 0)
+
+    def test_extra_cost_does_not_enable_partial_escape(self):
+        maze = np.zeros((15, 15), dtype=bool)
+        maze[:, 7] = True
+        targets = np.zeros(maze.shape)
+        targets[10, 10] = 1
+        extra = np.ones(maze.shape)
+        extra[:, :3] = 10
+        self.assertEqual(find_best_path_to_region(
+            maze, (1, 1), targets, cost_map=extra), [])
 
     def test_coarse_search_cannot_jump_through_thin_wall(self):
         maze = np.zeros((20, 30), dtype=bool)

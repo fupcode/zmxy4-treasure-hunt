@@ -105,11 +105,12 @@ def find_nearest_passable_point(maze, start):
 
 def _region_path(maze, start, targets, distance_maze, hate_factor,
                  danger=None, max_time=0.02, preferred_end=None, stride=1,
-                 allow_partial=True):
+                 allow_partial=True, cost_map=None):
     """指定步长的 A*；跨步路径逐格检查，不额外检查斜向两侧。
 
     max_time 是找到首条路径后的择优预算；预算耗尽时仍先找到可达目标，
     防止较远的窄目标因超时而始终返回空路径。无法完全脱险时返回风险更低的位置。
+    cost_map 是非负逐格额外成本，仅影响路径成本，不启用 danger 的脱险语义。
     """
     rows, cols = maze.shape
     targets = np.asarray(targets).copy()
@@ -170,6 +171,8 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
                 step_cost += 1 + hate_factor / (distance_maze[y, x] + 1)
                 if danger is not None:
                     step_cost += danger[y, x]
+                if cost_map is not None:
+                    step_cost += cost_map[y, x]
             if blocked:
                 continue
             new_cost = cost + step_cost
@@ -272,7 +275,8 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
     return [end]
 
 
-def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1, max_time=0.02):
-    """按目标评分择优；先 5 格粗搜索，无结果时再 1 格细搜索。"""
+def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1,
+                             max_time=0.02, cost_map=None):
+    """按目标评分择优；先粗后细搜索，可传入与地图同形状的非负逐格额外成本。"""
     return _coarse_to_fine_region_path(maze, start, end_region, distance_maze,
-                              hate_factor, max_time=max_time)
+                              hate_factor, max_time=max_time, cost_map=cost_map)

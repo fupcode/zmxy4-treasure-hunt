@@ -738,7 +738,8 @@ class Map:
             return None, [], 3
 
         path = maze_utils.find_best_path_to_region(moveable_maze, (player.x, player.y), end_region,
-                                                   distance_maze=obstacle_distance_maze, hate_factor=5)
+                                                   distance_maze=obstacle_distance_maze, hate_factor=5,
+                                                   cost_map=2.0 * peek_region_enemy)
 
         if path:
             return self.get_direction_from_next_point(player, path[0]), path, 4

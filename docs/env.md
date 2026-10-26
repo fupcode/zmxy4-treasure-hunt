@@ -130,6 +130,9 @@ env = Env(reward_config=RewardConfig(stationary=-0.005, wall_collision=-0.2))
 优先避让在途子弹和贴近敌人的危险，然后根据玩家位置选择终点：视野内只搜索
 局部 `end_peek_region`，路径可在整张 `moveable_maze` 上绕行，不受视野边界限制；
 局部终点无路时原地等待，不回退全局终点；视野外搜索 `end_region`。
+搜索 `end_region` 时，通过可选 `cost_map` 对每个经过的格子额外收取
+`2.0 × peek_region_enemy` 的成本，即按有效视野重叠敌人数叠加，粗搜索的中间格也计费。
+该成本只影响路径选择，不启用脱险逻辑；局部终点搜索和避险搜索不传此额外成本。
 该规则同样用于 Boss 战，敌人冷却不会清除在途子弹危险。
 
 采集数据默认保存到项目根目录的 `data/expert/<运行目录>/`。

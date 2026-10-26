@@ -331,7 +331,7 @@ class Map:
         return (np.abs(positions - center) <= limit) & (blocked == 0)
 
     def get_enemy_fire_region(self, enemy, maze=None):
-        """可开火区域与 fire_distance 共用射线判定，不依赖敌人视野评分。"""
+        """可开火区域与 fire_distance 共用射线判定，不依赖敌人射程范围评分。"""
         if maze is None:
             maze = self.get_maze()
         height, width = maze.shape
@@ -651,14 +651,14 @@ class Map:
         for enemy in enemy_list:
             if enemy is not None:
                 if enemy.is_safe():
-                    end_region[enemy.vision < 1] *= 0.92
+                    end_region[enemy.fire_range < 1] *= 0.92
                 else:
-                    end_region *= enemy.vision
+                    end_region *= enemy.fire_range
                     if self.level == 4:
                         end_region[:enemy.y2, enemy.x1:enemy.x2] = 0
 
         end_region[end_region == 1] = 0
-        # 视野只负责评分，不能把未对齐、超射程或被遮挡的位置作为射击终点。
+        # 射程范围只负责评分，不能把未对齐、超射程或被遮挡的位置作为射击终点。
         end_region[~can_fire_region] = 0
         distance_array = np.abs(player.x - np.arange(MAZE_WIDTH)) + np.abs(
             player.y - np.arange(MAZE_HEIGHT)[:, np.newaxis])

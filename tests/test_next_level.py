@@ -92,7 +92,7 @@ class NextLevelTests(unittest.TestCase):
             hit_point=4,
         )
         with patch.object(env.map, "update", side_effect=AssertionError("智能体不应计算危险图")), \
-             patch.object(Enemy, "calculate_vision", side_effect=AssertionError("不应计算视野")), \
+             patch.object(Enemy, "calculate_fire_range", side_effect=AssertionError("不应计算射程范围")), \
              patch.object(Enemy, "get_distance_array", side_effect=AssertionError("不应计算距离图")), \
              patch.object(env, "try_next_level", wraps=env.try_next_level) as finish:
             self.assertEqual(env.step(1), 0)
@@ -101,7 +101,7 @@ class NextLevelTests(unittest.TestCase):
         self.assertEqual(state.shape, (OBSERVATION_DIM,))
         self.assertEqual(state[17], 1)
         self.assertEqual(state[57], 1)
-        self.assertIsNone(env.enemy_list[0].vision)
+        self.assertIsNone(env.enemy_list[0].fire_range)
         self.assertIsNone(env.enemy_list[0].distance_array)
         # 左行新子弹归属右侧敌人；下一帧同一颗子弹不能反复重置冷却。
         env.game_window.bullet_list_normal = [(0.60, 0.64, 2)]
@@ -137,13 +137,13 @@ class NextLevelTests(unittest.TestCase):
         maze = game_map.get_maze()
         enemy = Enemy(DetectionResult(1, [0.6, 0.6, 0.65, 0.65]), maze)
         self.assertIsNone(enemy.distance_array)
-        self.assertIsNone(enemy.vision)
+        self.assertIsNone(enemy.fire_range)
         with patch.object(enemy, "get_distance_array", wraps=enemy.get_distance_array) as distance, \
-             patch.object(enemy, "calculate_vision", wraps=enemy.calculate_vision) as vision:
+             patch.object(enemy, "calculate_fire_range", wraps=enemy.calculate_fire_range) as fire_range:
             enemy.prepare_navigation(maze)
             enemy.prepare_navigation(maze)
             distance.assert_called_once_with()
-            self.assertEqual(vision.call_count, 1)
+            self.assertEqual(fire_range.call_count, 1)
 
 
 if __name__ == "__main__":

@@ -172,13 +172,13 @@ class Enemy:
 
         # 状态观测不依赖这些数组，仅在自动战斗寻路时按需计算。
         self.distance_array = None
-        self.vision = None
+        self.fire_range = None
 
     def prepare_navigation(self, maze):
         if self.distance_array is None:
             self.distance_array = self.get_distance_array()
-        if self.vision is None:
-            self.vision = self.calculate_vision(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
+        if self.fire_range is None:
+            self.fire_range = self.calculate_fire_range(maze, FIRE_Y_RANGE, FIRE_X_RANGE)
 
     def inherit(self, enemy):
         self.fire_cool_down = enemy.fire_cool_down
@@ -193,21 +193,22 @@ class Enemy:
 
         return distance_array
 
-    def calculate_vision(self, map_array, vertical_length, horizontal_length, strip_width=5):
-        # 初始化视野数组，值默认为1
-        vision_array = np.ones_like(map_array, dtype=np.float32)
+    def calculate_fire_range(self, map_array, vertical_length, horizontal_length, strip_width=5):
+        """计算受墙体阻挡的四向射程范围评分；0 为框内，向外递增，范围外为 1。"""
+        # 初始化射程范围数组，值默认为1
+        fire_range_array = np.ones_like(map_array, dtype=np.float32)
 
         # 地图大小
         map_height, map_width = map_array.shape
 
         # 敌人 box 区域初始化为 0
-        vision_array[self.y1:self.y2, self.x1:self.x2] = 0
+        fire_range_array[self.y1:self.y2, self.x1:self.x2] = 0
 
         # 计算衰减值的函数
         def calculate_decay(distance, max_distance):
             return distance / max_distance
 
-        # 向上扩展视野
+        # 向上扩展射程范围
         for x_start in range(self.x1, self.x2, strip_width):
             x_end = min(x_start + strip_width, self.x2)
             for dy in range(1, vertical_length + 1):
@@ -215,9 +216,9 @@ class Enemy:
                 if y < 0 or np.any(map_array[y, x_start:x_end] == 1):
                     break
                 decay_value = calculate_decay(dy, vertical_length)
-                vision_array[y, x_start:x_end] = decay_value
+                fire_range_array[y, x_start:x_end] = decay_value
 
-        # 向下扩展视野
+        # 向下扩展射程范围
         for x_start in range(self.x1, self.x2, strip_width):
             x_end = min(x_start + strip_width, self.x2)
             for dy in range(1, vertical_length + 1):
@@ -225,9 +226,9 @@ class Enemy:
                 if y >= map_height or np.any(map_array[y, x_start:x_end] == 1):
                     break
                 decay_value = calculate_decay(dy, vertical_length)
-                vision_array[y, x_start:x_end] = decay_value
+                fire_range_array[y, x_start:x_end] = decay_value
 
-        # 向左扩展视野
+        # 向左扩展射程范围
         for y_start in range(self.y1, self.y2, strip_width):
             y_end = min(y_start + strip_width, self.y2)
             for dx in range(1, horizontal_length + 1):
@@ -235,9 +236,9 @@ class Enemy:
                 if x < 0 or np.any(map_array[y_start:y_end, x] == 1):
                     break
                 decay_value = calculate_decay(dx, horizontal_length)
-                vision_array[y_start:y_end, x] = decay_value
+                fire_range_array[y_start:y_end, x] = decay_value
 
-        # 向右扩展视野
+        # 向右扩展射程范围
         for y_start in range(self.y1, self.y2, strip_width):
             y_end = min(y_start + strip_width, self.y2)
             for dx in range(1, horizontal_length + 1):
@@ -245,9 +246,9 @@ class Enemy:
                 if x >= map_width or np.any(map_array[y_start:y_end, x] == 1):
                     break
                 decay_value = calculate_decay(dx, horizontal_length)
-                vision_array[y_start:y_end, x] = decay_value
+                fire_range_array[y_start:y_end, x] = decay_value
 
-        return vision_array
+        return fire_range_array
 
     def set_fired(self, current_time):
         """由新子弹推断开火，重置该敌人的剩余冷却秒数。"""

@@ -24,7 +24,7 @@ class FireAlignmentTests(unittest.TestCase):
         enemy = Enemy.__new__(Enemy)
         enemy.x, enemy.y = x, y
         enemy.x1, enemy.y1, enemy.x2, enemy.y2 = box
-        enemy.distance_array = enemy.vision = None
+        enemy.distance_array = enemy.fire_range = None
         enemy.fire_cool_down = cooldown
         return enemy
 
@@ -90,7 +90,7 @@ class FireAlignmentTests(unittest.TestCase):
     def test_large_box_does_not_extend_effective_fire_range(self):
         enemy = self.enemy(y=115, box=(150, 100, 170, 130))
         region = self.regions([enemy], 160, 5)[-1]
-        self.assertGreater(enemy.vision[5, 160], 0)
+        self.assertGreater(enemy.fire_range[5, 160], 0)
         self.assertEqual(region[5, 160], 0)
         self.assertIsNone(self.game_map.fire_direction(SimpleNamespace(x=160, y=5), [enemy]))
 

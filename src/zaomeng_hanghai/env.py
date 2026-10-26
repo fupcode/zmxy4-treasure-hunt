@@ -281,29 +281,32 @@ class Env:
             recorder.action(self, direction, phase)
         self.action_manager.take_action_direction(direction)
 
-    def auto_run(self, *, expert_output=None, recorder=None):
-        """从 reset 开始运行一局专家，并默认保存开局/战斗动作供 BC 使用。"""
+    def auto_run(self, *, expert_output=None, recorder=None, collect_expert=False):
+        """运行一局规则专家；仅显式开启采集、指定目录或传入 recorder 时保存数据。"""
         if getattr(self, "_expert_recorder", None) is not None:
             raise RuntimeError("Expert collection is already active")
         if recorder is not None and expert_output is not None:
             raise ValueError("Specify recorder or expert_output, not both")
-        owned = recorder is None
+        owned = recorder is None and (collect_expert or expert_output is not None)
         if owned:
             recorder = ExpertRecorder(expert_output, combat_timeout=self.combat_timeout)
-        self.expert_data_path = recorder.path
-        recorder.begin()
+        self.expert_data_path = recorder.path if recorder is not None else None
+        if recorder is not None:
+            recorder.begin()
         self._expert_recorder = recorder
         try:
             _, status_code = self.reset()
             while status_code == 0:
                 status_code = self.auto_step()
         except BaseException as error:
-            recorder.finish(-4, self.map.level, error=f"{type(error).__name__}: {error}")
+            if recorder is not None:
+                recorder.finish(-4, self.map.level, error=f"{type(error).__name__}: {error}")
             if owned:
                 recorder.progress("interrupted" if isinstance(error, KeyboardInterrupt) else "failed", str(error))
             raise
         else:
-            recorder.finish(status_code, self.map.level)
+            if recorder is not None:
+                recorder.finish(status_code, self.map.level)
             if owned:
                 recorder.progress("completed")
             return status_code
@@ -649,13 +652,14 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env: Env, target=3, *, expert_output=None):
+def auto_loop(env: Env, target=3, *, expert_output=None, collect_expert=False):
     # 传入已经初始化好窗口的Env实例
     success_count = 0
 
     if target <= 0:
         return
-    recorder = ExpertRecorder(expert_output, combat_timeout=env.combat_timeout)
+    recorder = (ExpertRecorder(expert_output, combat_timeout=env.combat_timeout)
+                if collect_expert or expert_output is not None else None)
     print("Start Loop")
     try:
         while success_count < target:
@@ -666,10 +670,12 @@ def auto_loop(env: Env, target=3, *, expert_output=None):
             time.sleep(1)
             env.game_window.recover(status_code)
     except BaseException as error:
-        recorder.progress("interrupted" if isinstance(error, KeyboardInterrupt) else "failed", str(error))
+        if recorder is not None:
+            recorder.progress("interrupted" if isinstance(error, KeyboardInterrupt) else "failed", str(error))
         raise
     else:
-        recorder.progress("completed")
+        if recorder is not None:
+            recorder.progress("completed")
 
 
 if __name__ == "__main__":
@@ -683,7 +689,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="自动战斗或只读调试窗口")
     parser.add_argument("target", nargs="?", type=int, default=3)
     parser.add_argument("--debug", action="store_true", help="只显示感知和建议路径，不发送鼠标或键盘指令")
-    parser.add_argument("--expert-output", type=Path, help="专家数据的新运行目录；默认 data/expert/<时间_随机后缀>")
+    parser.add_argument("--collect-expert", action="store_true", help="开启专家数据采集；默认不采集")
+    parser.add_argument("--expert-output", type=Path, help="开启采集并指定专家数据的新运行目录")
     parser.add_argument("--map-index", type=int, choices=range(7), help="调试时指定大地图编号，默认从画面识别")
     parser.add_argument("--level", type=int, choices=range(5), default=0, help="调试开始时所在关卡，默认 0")
     args = parser.parse_args()
@@ -704,4 +711,4 @@ if __name__ == "__main__":
         finally:
             cv2.destroyWindow("Monitor")
     else:
-        auto_loop(env_, args.target, expert_output=args.expert_output)
+        auto_loop(env_, args.target, expert_output=args.expert_output, collect_expert=args.collect_expert)

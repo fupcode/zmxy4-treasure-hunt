@@ -16,6 +16,50 @@ from zaomeng_hanghai.env import Env, auto_loop
 from zaomeng_hanghai.train.expert_data import load_episodes
 
 
+class OptionalRecordingTests(unittest.TestCase):
+    def make_env(self):
+        env = Env.__new__(Env)
+        env.map = SimpleNamespace(level=1)
+        env.combat_timeout = 30
+        env.reset = Mock(return_value=(None, 0))
+        env.auto_step = Mock(return_value=1)
+        env.game_window = SimpleNamespace(recover=Mock())
+        env.state_encode = Mock(side_effect=AssertionError('Default mode must not record'))
+        return env
+
+    def test_default_single_run_does_not_create_recorder(self):
+        env = self.make_env()
+        with patch('zaomeng_hanghai.env.ExpertRecorder', side_effect=AssertionError('Unexpected recorder')):
+            self.assertEqual(env.auto_run(), 1)
+        self.assertIsNone(env.expert_data_path)
+        self.assertIsNone(env._expert_recorder)
+        env.state_encode.assert_not_called()
+
+    def test_default_loop_runs_without_recording(self):
+        env = self.make_env()
+        with patch('zaomeng_hanghai.env.ExpertRecorder', side_effect=AssertionError('Unexpected recorder')), \
+             patch('zaomeng_hanghai.env.time.sleep'):
+            auto_loop(env, target=2)
+        self.assertEqual(env.auto_step.call_count, 2)
+        self.assertEqual(env.game_window.recover.call_count, 2)
+        env.state_encode.assert_not_called()
+
+    def test_explicit_flag_creates_recorder(self):
+        env = self.make_env()
+        with patch('zaomeng_hanghai.env.ExpertRecorder') as factory:
+            env.auto_run(collect_expert=True)
+        factory.assert_called_once_with(None, combat_timeout=30)
+        factory.return_value.begin.assert_called_once_with()
+        factory.return_value.finish.assert_called_once_with(1, 1)
+
+    def test_interrupt_without_recording_preserves_exception(self):
+        env = self.make_env()
+        env.auto_step.side_effect = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            env.auto_run()
+        self.assertIsNone(env._expert_recorder)
+
+
 class ExpertRecordingTests(unittest.TestCase):
     def setUp(self):
         scratch = Path(__file__).resolve().parents[1] / "runs"

@@ -79,7 +79,6 @@ def main():
             exit(0)
         env.init_window(outer_window_box=region)
 
-    print("Start Loop")
     auto_loop(env, need_success_count)
     input("自动航海完毕，按 Enter 退出...")
 

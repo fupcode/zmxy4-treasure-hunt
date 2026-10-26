@@ -1,6 +1,7 @@
 # 专家数据采集与格式
 
-每次调用 `Env.auto_run()` 都会从 `reset()` 开始运行一局专家，并记录该局的开局和战斗动作。
+每次调用 `Env.auto_run()` 都会从 `reset()` 开始运行一局专家，默认不采集数据。
+显式传入 `collect_expert=True`、`expert_output` 或 `recorder` 时才记录开局和战斗动作。
 `auto_loop()`、`main.py` 和环境模块的自动模式均使用此入口，无需额外采集脚本。
 只读 `--debug`、策略推理和 PPO 的 `step()` 不会采集专家数据。
 
@@ -9,13 +10,14 @@
 在项目根目录运行，游戏停在航海起始界面且保持无遮挡：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.env 3
+.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.env 3 --collect-expert
 ```
 
 `3` 表示目标成功次数，不是尝试局数；死亡或超时后恢复并继续，直到成功次数达到目标。
 默认开启调试窗口。也可以运行 `main.py`，通过交互选择游戏窗口和目标成功次数。
 
-默认目录为项目根目录下的 `data/expert/<日期_时间_随机后缀>/`，启动时输出
+不加 `--collect-expert` 或 `--expert-output` 时只运行自动战斗，不创建数据目录。
+开启采集后的默认目录为项目根目录下的 `data/expert/<日期_时间_随机后缀>/`，启动时输出
 `Expert data directory:`。同一次 `auto_loop()` 的所有尝试写入一个运行目录。
 `data/expert/` 已被 Git 忽略。
 
@@ -33,7 +35,7 @@ from zaomeng_hanghai.env import Env, auto_loop
 
 env = Env(render_enabled=False, combat_timeout=30)
 env.init_window()
-status = env.auto_run()  # 单局；每次独立调用默认创建一个新目录
+status = env.auto_run(collect_expert=True)  # 采集单局，每次独立调用创建一个新目录
 print(env.expert_data_path)
 # 或：auto_loop(env, target=3, expert_output="data/expert/my_run")
 ```

@@ -152,7 +152,8 @@ env = Env(reward_config=RewardConfig(stationary=-0.005, wall_collision=-0.2))
 以弹头相对子弹检测框中心的偏移判断四向运动，不再依赖火焰颜色、火焰面积或包含关系。
 没有有效弹头或弹头恰好位于框中心时跳过该框；方向精度仍依赖 YOLO 框与弹头定位。
 
-采集数据默认保存到项目根目录的 `data/expert/<运行目录>/`。
+自动战斗默认不采集专家数据；加 `--collect-expert` 开启采集，或用 `--expert-output` 开启并指定目录。
+开启后数据默认保存到项目根目录的 `data/expert/<运行目录>/`。
 目录结构、过滤规则、NPZ 字段、状态编码和读取示例见 [专家数据格式](expert-data.md)。
 
 ## 图片手动检查碰撞与地图

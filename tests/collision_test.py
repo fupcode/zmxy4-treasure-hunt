@@ -268,10 +268,17 @@ def main(argv=None):
           f"obstacle rectangles={len(mask_rectangles(raw_obstacle_mask(game_map)))}")
     print(f"Player={player is not None}, enemies={len(enemies)}, danger bullets={len(bullets)}, "
           f"passed bullets={len(bullets.safe_bullets)}, useful drops={len(items)}, items={window.items}")
+    if player is not None:
+        print(f"P: normalized=({player.xn:.6f}, {player.yn:.6f})")
+        print("Relative normalized coordinates: enemy - player; +dx=right, +dy=down")
     for index, enemy in enumerate(enemies, 1):
         print(f"E{index}: box=({enemy.x1}, {enemy.y1}, {enemy.x2}, {enemy.y2}) "
               f"raw=({enemy.xn * MAZE_WIDTH:.2f}, {enemy.yn * MAZE_HEIGHT:.2f}) "
-              f"navigation=({enemy.x}, {enemy.y})")
+              f"navigation=({enemy.x}, {enemy.y}) "
+              f"normalized=({enemy.xn:.6f}, {enemy.yn:.6f})")
+        if player is not None:
+            print(f"  relative_to_player=(dx={enemy.xn - player.xn:+.6f}, "
+                  f"dy={enemy.yn - player.yn:+.6f})")
     title = (f"{args.image.name} | map={args.map_index} level={args.level} task={game_map.get_task()} "
              f"| status={status} HP={window.hit_point} | {elapsed_ms:.1f} ms\n"
              "Static layout comes from the selected map/level; single-image cooldown is unknown.")

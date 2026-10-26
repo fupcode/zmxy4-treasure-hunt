@@ -502,13 +502,13 @@ class Bullets(UserList[Bullet]):
 
     def is_safe(self, bullet, player):
         # 子弹中心必须完全越过原始 HIT 范围，边界处仍算危险。
-        if bullet.d == 0 and bullet.x > player.x + HIT_WIDTH:
+        if bullet.d == 0 and bullet.x > player.x + HIT_WIDTH // 2:
             return True
-        elif bullet.d == 1 and bullet.y > player.y + HIT_HEIGHT:
+        elif bullet.d == 1 and bullet.y > player.y + HIT_HEIGHT // 2:
             return True
-        elif bullet.d == 2 and bullet.x < player.x - HIT_WIDTH:
+        elif bullet.d == 2 and bullet.x < player.x - HIT_WIDTH // 2:
             return True
-        elif bullet.d == 3 and bullet.y < player.y - HIT_HEIGHT:
+        elif bullet.d == 3 and bullet.y < player.y - HIT_HEIGHT // 2:
             return True
         return False
 

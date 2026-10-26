@@ -71,8 +71,7 @@ class Env:
         self.new_level = False
         self.level_started_at = None
 
-        self.move_index = None
-        self.move_end = None
+        self.last_direction = None
 
         self.fps_calculator = FrameRateCalculator()
         self.map = Map(render_enabled=render_enabled)
@@ -148,8 +147,7 @@ class Env:
 
         self.new_level = False
         self.level_started_at = None
-        self.move_index = None
-        self.move_end = None
+        self.last_direction = None
 
         status_code = self.update()
         if status_code:
@@ -204,8 +202,7 @@ class Env:
             self.enemy_list.clear()
             self.bullets.clear()
             self.falling_items.clear()
-            self.move_index = None
-            self.move_end = None
+            self.last_direction = None
 
         self.player = player
 
@@ -280,6 +277,7 @@ class Env:
         if recorder is not None:
             recorder.action(self, direction, phase)
         self.action_manager.take_action_direction(direction)
+        self.last_direction = direction
 
     def auto_run(self, *, expert_output=None, recorder=None, collect_expert=False):
         """运行一局规则专家；仅显式开启采集、指定目录或传入 recorder 时保存数据。"""
@@ -319,10 +317,9 @@ class Env:
         if status_code not in (0, -3):
             return status_code
         self.update_navigation()
-        _, path, self.move_index = self.map.get_shot_place_direction(
-            self.player, self.move_index, self.move_end
+        _, path, _ = self.map.get_shot_place_direction(
+            self.player, last_direction=self.last_direction
         )
-        self.move_end = path[-1] if path else None
         self.render(path)
         return status_code
 
@@ -359,6 +356,7 @@ class Env:
                 if distance is not None and radius > 0:
                     enemy_proximity_weight += max(0.0, 1.0 - distance / radius) ** 2
         self.action_manager.take_action(action)
+        self.last_direction = self.action_manager.last_direction
         fire_reward = float(self.action_manager.fire_reward)
         self.render()
         hp_lost = 0.0
@@ -520,7 +518,8 @@ class Env:
                 self.level_started_at is None
                 or time.monotonic() - self.level_started_at >= 5
             ):
-                direction, path = self.map.get_next_direction(self.player, self.falling_items)
+                direction, path = self.map.get_next_direction(
+                    self.player, self.falling_items, last_direction=self.last_direction)
                 self.render(path)
                 self._take_expert_action(direction, "navigation")
             else:
@@ -542,8 +541,8 @@ class Env:
             return 0
 
         self.update_navigation()
-        direction, path, self.move_index = self.map.get_shot_place_direction(
-            self.player, self.move_index, self.move_end
+        direction, path, _ = self.map.get_shot_place_direction(
+            self.player, last_direction=self.last_direction
         )
         if direction is None:
             self._take_expert_action(None, "combat")
@@ -551,7 +550,6 @@ class Env:
             status_code = self.update()
             return status_code
 
-        self.move_end = path[-1]
         self._take_expert_action(direction, "combat")
         self.render(path)
 

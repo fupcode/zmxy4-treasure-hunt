@@ -64,7 +64,7 @@ class FireAlignmentTests(unittest.TestCase):
                 self.assertEqual((regions[-1] + regions[-2])[y, x], 0)
                 player = SimpleNamespace(x=x, y=y)
                 self.assertIsNone(self.game_map.fire_direction(player, [enemy]))
-                direction, path, mode = self.game_map.get_shot_place_direction(player, None, None)
+                direction, path, mode = self.game_map.get_shot_place_direction(player)
                 self.assertNotEqual(mode, 0)
                 self.assertIsNotNone(direction)
                 self.assertTrue(path)

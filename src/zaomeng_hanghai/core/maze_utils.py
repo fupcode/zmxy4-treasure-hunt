@@ -28,29 +28,24 @@ def calculate_distance_from_obstacles(maze):
     return distance_transform_cdt(~obstacles, metric="taxicab")[1:-1, 1:-1].astype(np.float64)
 
 
-def calculate_direction_penalty(current, prev, start, stride, max_penalty=10):
-    """
-    计算方向惩罚，越靠近起点，惩罚越大，方向差异越大，惩罚越大。
-    """
-    cx, cy = current
-    px, py = prev
-    sx, sy = start
+_DIRECTIONS = ((0, 1), (1, 0), (0, -1), (-1, 0),
+               (1, 1), (1, -1), (-1, 1), (-1, -1))
 
-    # 计算当前方向和前一个方向的向量差异
-    direction_current = (cx - px, cy - py)
-    direction_prev = (px - sx, py - sy)
 
-    # 计算方向差异的叉积（方向差异）
-    cross_product = direction_current[0] * direction_prev[1] - direction_current[1] * direction_prev[0]
-    direction_diff = abs(cross_product)
-
-    # 计算从当前点到起点的曼哈顿距离（或欧几里得距离）
-    distance_to_start = math.hypot(cx - sx, cy - sy)
-
-    # 计算惩罚，距离越近惩罚越大，方向差异越大惩罚越大
-    penalty = min(direction_diff / stride, max_penalty) * (1 / (distance_to_start + 1))
-
-    return penalty
+def calculate_turn_costs(last_direction, turn_cost):
+    """八方向的首步转向成本；turn_cost 是完全反向的成本，不随步长变化。"""
+    if not math.isfinite(turn_cost) or turn_cost < 0:
+        raise ValueError("turn_cost must be nonnegative and finite")
+    if last_direction is None:
+        return (0.0,) * 8
+    if tuple(last_direction) not in _DIRECTIONS:
+        raise ValueError("last_direction must be an eight-direction unit vector")
+    previous = math.atan2(last_direction[1], last_direction[0])
+    costs = []
+    for dx, dy in _DIRECTIONS:
+        angle = abs((math.atan2(dy, dx) - previous + math.pi) % (2 * math.pi) - math.pi)
+        costs.append(turn_cost * round(angle / (math.pi / 4)) / 4)
+    return tuple(costs)
 
 
 def find_nearest_passable_point(maze, start):
@@ -79,13 +74,14 @@ def find_nearest_passable_point(maze, start):
 
 
 def _region_path(maze, start, targets, distance_maze, hate_factor,
-                 danger=None, preferred_end=None, stride=1,
+                 danger=None, last_direction=None, turn_cost=2.0, stride=1,
                  allow_partial=True, cost_map=None):
     """指定步长的 A*；跨步路径逐格检查，不额外检查斜向两侧。
 
     无时间限制；找到评分大于 0.8 的目标即返回，否则遍历可达节点选取最高分目标。
     脱险时找到安全目标即返回，无法完全脱险时返回风险更低的位置。
     cost_map 是非负逐格额外成本，仅影响路径成本，不启用 danger 的脱险语义。
+    last_direction 是上次实际移动的单位向量；仅第一步按转向夹角加入 turn_cost。
     """
     rows, cols = maze.shape
     targets = np.asarray(targets)
@@ -99,6 +95,7 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
     if distance_maze is None:
         distance_maze = calculate_distance_from_obstacles(maze)
     min_step_cost = 1 + hate_factor / (np.max(distance_maze) + 1)
+    turn_costs = calculate_turn_costs(last_direction, turn_cost)
     if _native_region_path is not None:
         # 仅在 dtype 或布局不匹配时转换；Rust 持有 GIL，零拷贝借用这些数组。
         return _native_region_path(
@@ -108,7 +105,7 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
             np.ascontiguousarray(distance_maze, dtype=np.float64),
             hate_factor, float(min_step_cost),
             None if danger is None else np.ascontiguousarray(danger, dtype=np.float64),
-            preferred_end, stride, allow_partial,
+            turn_costs, stride, allow_partial,
             None if cost_map is None else np.ascontiguousarray(cost_map, dtype=np.float64),
         )
     costs = {start: 0.0}
@@ -118,8 +115,6 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
     best = None
     best_value = -np.inf
     safer = start
-    directions = ((0, 1), (1, 0), (0, -1), (-1, 0),
-                  (1, 1), (1, -1), (-1, 1), (-1, -1))
 
     def path_to(point):
         path = []
@@ -144,11 +139,11 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
             if value > 0.8:
                 return path_to(best)
             # 允许穿过低分候选区域，继续寻找更合适的射击位置。
-        for dx, dy in directions:
+        for direction_index, (dx, dy) in enumerate(_DIRECTIONS):
             nx, ny = cx + dx * stride, cy + dy * stride
             if not (0 <= nx < cols and 0 <= ny < rows) or maze[ny, nx]:
                 continue
-            step_cost = 0.0
+            step_cost = turn_costs[direction_index] if current == start else 0.0
             blocked = False
             for offset in range(1, stride + 1):
                 x, y = cx + dx * offset, cy + dy * offset
@@ -167,12 +162,8 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
             if new_cost < costs.get(neighbor, np.inf):
                 costs[neighbor] = new_cost
                 parents[neighbor] = current
-                # 旧终点仅用于相同代价时择优，不能盖过本次实际危险和距离。
-                preference = 0.0
-                if preferred_end is not None:
-                    preference = 1e-6 * (abs(nx - preferred_end[0]) + abs(ny - preferred_end[1]))
                 remaining = float(goal_distance[ny, nx])
-                priority = new_cost + remaining * min_step_cost + preference
+                priority = new_cost + remaining * min_step_cost
                 # 浮点累加误差不应打破等价路径的距离择优，导致开阔地大面积扩展。
                 heapq.heappush(queue, (round(priority, 9), remaining, new_cost, neighbor))
     if best is not None:
@@ -201,14 +192,16 @@ def _coarse_to_fine_region_path(maze, start, targets, distance_maze, hate_factor
     return []
 
 
-def find_nearest_passable_path(maze, start, flee_region, distance_maze=None, hate_factor=1, last_move_end=None):
+def find_nearest_passable_path(maze, start, flee_region, distance_maze=None, hate_factor=1,
+                               last_direction=None, turn_cost=1.0):
     """先以 5 格寻找脱险路径，失败后以 1 格重试。"""
     return _coarse_to_fine_region_path(maze, start, (flee_region == 0).astype(np.float32),
                               distance_maze, hate_factor, danger=flee_region,
-                              preferred_end=last_move_end)
+                              last_direction=last_direction, turn_cost=turn_cost)
 
 
-def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, hate_factor=1):
+def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, hate_factor=1,
+                       last_direction=None, turn_cost=2.0):
     # 迷宫的尺寸
     rows, cols = maze.shape
     end = (min(cols - 1, max(0, int(round(end[0])))), min(rows - 1, max(0, int(round(end[1])))))
@@ -218,6 +211,7 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
         (0, stride), (stride, 0), (0, -stride), (-stride, 0),  # 上下左右
         (stride, stride), (stride, -stride), (-stride, stride), (-stride, -stride)  # 四个对角线
     ]
+    turn_costs = dict(zip(_DIRECTIONS, calculate_turn_costs(last_direction, turn_cost)))
 
     # 计算每个点到障碍物的距离图
     if distance_maze is None:
@@ -227,7 +221,8 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
 
     # 启发函数
     def heuristic(x, y):
-        return abs(x - end[0]) + abs(y - end[1])
+        # 使用步数下界，避免像素距离压过真实路径成本和首步转向成本。
+        return max(0, (max(abs(x - end[0]), abs(y - end[1])) - 1) // stride)
 
     # 优先队列初始化
     open_set = []
@@ -257,6 +252,8 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
 
             if 0 <= ny < rows and 0 <= nx < cols and maze[ny, nx] == 0:
                 new_cost = cost_so_far[current] + 1 + 1 / (distance_from_obstacle[ny, nx] + 1) * hate_factor
+                if current == start:
+                    new_cost += turn_costs[(dc // stride, dr // stride)]
 
                 if (nx, ny) not in cost_so_far or new_cost < cost_so_far[(nx, ny)]:
                     cost_so_far[(nx, ny)] = new_cost
@@ -268,7 +265,8 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
 
 
 def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1,
-                             cost_map=None):
+                             cost_map=None, last_direction=None, turn_cost=2.0):
     """按目标评分择优；先粗后细搜索，可传入与地图同形状的非负逐格额外成本。"""
     return _coarse_to_fine_region_path(maze, start, end_region, distance_maze,
-                              hate_factor, cost_map=cost_map)
+                              hate_factor, cost_map=cost_map,
+                              last_direction=last_direction, turn_cost=turn_cost)

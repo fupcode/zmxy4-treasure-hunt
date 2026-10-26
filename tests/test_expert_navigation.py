@@ -12,6 +12,7 @@ from zaomeng_hanghai.core.constants import (
     FIRE_X_RANGE, FIRE_Y_RANGE, HIT_HEIGHT, HIT_WIDTH,
 )
 from zaomeng_hanghai.core.entities import Bullets
+from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.maze_utils import (
     find_best_path_to_region,
     find_nearest_passable_path,
@@ -19,6 +20,21 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
+
+    def test_shooting_path_uses_last_executed_direction(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        shape = (25, 30)
+        empty = np.zeros(shape)
+        targets = empty.copy()
+        targets[12, 2] = targets[12, 22] = 1
+        game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
+                               empty, empty, empty, targets)
+        direction, path, mode = game_map.get_shot_place_direction(
+            SimpleNamespace(x=12, y=12), last_direction=Direction.Right)
+        self.assertEqual(direction, Direction.Right)
+        self.assertEqual(path[-1], (22, 12))
+        self.assertEqual(mode, 4)
 
     def test_bullet_rectangles_clip_at_edges_with_hit_tail(self):
         game_map = Map.__new__(Map)
@@ -93,7 +109,7 @@ class ExpertNavigationTests(unittest.TestCase):
             actual = game_map.get_flee_maze(player, order, [])
             np.testing.assert_array_equal(actual[0], regions[0])
             np.testing.assert_array_equal(actual[2], regions[2])
-        direction, path, mode = game_map.get_shot_place_direction(player, None, None)
+        direction, path, mode = game_map.get_shot_place_direction(player)
         self.assertIsNotNone(direction)
         self.assertEqual(mode, 1)
         self.assertTrue(path)
@@ -123,7 +139,7 @@ class ExpertNavigationTests(unittest.TestCase):
                     game_map.flee_mazes = (maze, np.ones(shape), bullets, enemies,
                                            peek, empty, empty, empty)
                     with patch("zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region", return_value=[]) as search:
-                        game_map.get_shot_place_direction(SimpleNamespace(x=x, y=y), None, None)
+                        game_map.get_shot_place_direction(SimpleNamespace(x=x, y=y))
                     expected = maze | (((bullets + enemies) > 0)
                                        & (abs(xx - x) <= 10) & (abs(yy - y) <= 10))
                     self.assertEqual(search.call_count, 1)
@@ -149,7 +165,7 @@ class ExpertNavigationTests(unittest.TestCase):
                                    vision, empty, empty, global_targets)
             with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
                        return_value=[]) as search:
-                result = game_map.get_shot_place_direction(SimpleNamespace(x=5, y=10), None, None)
+                result = game_map.get_shot_place_direction(SimpleNamespace(x=5, y=10))
             self.assertEqual(result, (None, [], 3))
             search.assert_called_once()
             np.testing.assert_array_equal(search.call_args.args[2], empty)
@@ -168,7 +184,7 @@ class ExpertNavigationTests(unittest.TestCase):
         with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
                    wraps=find_best_path_to_region) as search:
             direction, path, mode = game_map.get_shot_place_direction(
-                SimpleNamespace(x=5, y=10), None, None)
+                SimpleNamespace(x=5, y=10))
         np.testing.assert_array_equal(search.call_args.kwargs['cost_map'], 2.0 * vision)
         self.assertIsNotNone(direction)
         self.assertEqual(mode, 4)
@@ -188,7 +204,7 @@ class ExpertNavigationTests(unittest.TestCase):
         game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
                                vision, targets > 0, targets, empty)
         direction, path, mode = game_map.get_shot_place_direction(
-            SimpleNamespace(x=10, y=10), None, None)
+            SimpleNamespace(x=10, y=10))
         self.assertIsNotNone(direction)
         self.assertEqual(mode, 3)
         self.assertEqual(path[-1], (20, 10))
@@ -302,12 +318,12 @@ class ExpertNavigationTests(unittest.TestCase):
         game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
                                peek, cross, targets, targets)
         direction, path, index = game_map.get_shot_place_direction(
-            SimpleNamespace(x=2, y=10), None, None)
+            SimpleNamespace(x=2, y=10))
         self.assertIsNotNone(direction)
         self.assertEqual(index, 3)
         self.assertEqual(path[-1], (10, 10))
         self.assertEqual(game_map.get_shot_place_direction(
-            SimpleNamespace(x=10, y=10), index, path[-1]), (None, [], 0))
+            SimpleNamespace(x=10, y=10)), (None, [], 0))
 
     def test_valid_shooting_position_does_not_chase_higher_peek_score(self):
         game_map = Map.__new__(Map)
@@ -321,7 +337,7 @@ class ExpertNavigationTests(unittest.TestCase):
         game_map.flee_mazes = (maze, np.ones(shape), empty, empty,
                                np.ones(shape), targets > 0, targets, targets)
         self.assertEqual(game_map.get_shot_place_direction(
-            SimpleNamespace(x=10, y=10), None, None), (None, [], 0))
+            SimpleNamespace(x=10, y=10)), (None, [], 0))
 
     def test_single_pixel_target_off_stride_grid(self):
         maze = np.zeros((25, 30), dtype=bool)
@@ -397,7 +413,7 @@ class ExpertNavigationTests(unittest.TestCase):
                                        empty, empty, empty, empty)
                 player = SimpleNamespace(x=60, y=50)
                 for _ in range(2):
-                    direction, path, index = game_map.get_shot_place_direction(player, -1, None)
+                    direction, path, index = game_map.get_shot_place_direction(player)
                     self.assertIsNotNone(direction)
                     self.assertEqual(index, 1)
                     self.assertEqual(danger[path[-1][1], path[-1][0]], 0)
@@ -415,10 +431,10 @@ class ExpertNavigationTests(unittest.TestCase):
         targets[2, 20] = 0.9
         game_map.flee_mazes = (maze, np.ones(shape), empty, danger,
                                empty, empty, empty, targets)
-        game_map.get_shot_place_direction(SimpleNamespace(x=2, y=2), -1, None)
+        game_map.get_shot_place_direction(SimpleNamespace(x=2, y=2))
         self.assertFalse(maze.any())
         direction, path, index = game_map.get_shot_place_direction(
-            SimpleNamespace(x=10, y=10), -1, None)
+            SimpleNamespace(x=10, y=10))
         self.assertIsNotNone(direction)
         self.assertEqual(index, 1)
         self.assertEqual(danger[path[-1][1], path[-1][0]], 0)

@@ -59,7 +59,7 @@ fn search(
     hate_factor: f64,
     min_step_cost: f64,
     danger: Option<&[f64]>,
-    preferred_end: Option<(isize, isize)>,
+    turn_costs: [f64; 8],
     stride: usize,
     allow_partial: bool,
     cost_map: Option<&[f64]>,
@@ -112,7 +112,7 @@ fn search(
                 return path_to(best.unwrap(), &parents, cols);
             }
         }
-        for (dx, dy) in directions {
+        for (direction_index, (dx, dy)) in directions.into_iter().enumerate() {
             let nx = current.x as isize + dx * stride as isize;
             let ny = current.y as isize + dy * stride as isize;
             if nx < 0 || ny < 0 || nx >= cols as isize || ny >= rows as isize {
@@ -122,7 +122,11 @@ fn search(
             if maze[neighbor] {
                 continue;
             }
-            let mut step_cost = 0.0;
+            let mut step_cost = if index == start_index {
+                turn_costs[direction_index]
+            } else {
+                0.0
+            };
             let mut blocked = false;
             for offset in 1..=stride {
                 let x = (current.x as isize + dx * offset as isize) as usize;
@@ -147,11 +151,8 @@ fn search(
             if new_cost < costs[neighbor] {
                 costs[neighbor] = new_cost;
                 parents[neighbor] = index;
-                let preference = preferred_end.map_or(0.0, |(x, y)| {
-                    1e-6 * ((nx - x).abs() + (ny - y).abs()) as f64
-                });
                 let remaining = goal_distance[neighbor];
-                let priority = new_cost + f64::from(remaining) * min_step_cost + preference;
+                let priority = new_cost + f64::from(remaining) * min_step_cost;
                 // Python 中 priority 为 NumPy float64，其 round 使用缩放后 ties-to-even。
                 queue.push(Entry {
                     priority: (priority * 1e9).round_ties_even() / 1e9,
@@ -174,7 +175,7 @@ fn search(
 
 #[pyfunction]
 #[pyo3(signature = (maze, start, targets, goal_distance, distance, hate_factor, min_step_cost,
-                    danger, preferred_end, stride, allow_partial, cost_map))]
+                    danger, turn_costs, stride, allow_partial, cost_map))]
 #[allow(clippy::too_many_arguments)]
 fn region_path(
     _py: Python<'_>,
@@ -186,7 +187,7 @@ fn region_path(
     hate_factor: f64,
     min_step_cost: f64,
     danger: Option<PyReadonlyArray2<'_, f64>>,
-    preferred_end: Option<(isize, isize)>,
+    turn_costs: [f64; 8],
     stride: usize,
     allow_partial: bool,
     cost_map: Option<PyReadonlyArray2<'_, f64>>,
@@ -196,6 +197,14 @@ fn region_path(
     if stride == 0 || stride > isize::MAX as usize || start.0 >= cols || start.1 >= rows {
         return Err(PyValueError::new_err(
             "start must be inside maze and stride must be positive",
+        ));
+    }
+    if turn_costs
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        return Err(PyValueError::new_err(
+            "turn costs must be nonnegative and finite",
         ));
     }
     let shape = [rows, cols];
@@ -227,7 +236,7 @@ fn region_path(
         hate_factor,
         min_step_cost,
         danger_slice,
-        preferred_end,
+        turn_costs,
         stride,
         allow_partial,
         cost_slice,

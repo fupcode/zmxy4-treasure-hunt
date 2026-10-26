@@ -4,7 +4,7 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 
 from . import maze_utils
-from .direction import Direction, direction_list, move_list
+from .direction import Direction, direction_list, move_list, get_direction_vector
 from .constants import (
     BULLET_AVOID_HEIGHT,
     BULLET_AVOID_WIDTH,
@@ -526,7 +526,7 @@ class Map:
             else:
                 return Direction.Up
 
-    def get_next_direction(self, player, falling_items):
+    def get_next_direction(self, player, falling_items, last_direction=None):
         direction = self.nearly_exit(player)
         if direction is not None:
             return direction, []
@@ -547,7 +547,7 @@ class Map:
 
         start = (player.x, player.y)
         path = maze_utils.find_path_to_point(self.get_maze(), start, end, distance_maze=self.get_distance_maze(),
-                                             hate_factor=8)
+                                             hate_factor=8, last_direction=get_direction_vector(last_direction))
         next_point = path[0]
         direction = self.get_direction_from_next_point(player, next_point)
         return direction, path
@@ -728,17 +728,16 @@ class Map:
 
         return moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, peek_cross_enemy, end_peek_region, end_region
 
-    def get_shot_place_direction(self, player, last_move_index, last_move_end):
+    def get_shot_place_direction(self, player, last_direction=None):
+        last_direction = get_direction_vector(last_direction)
         moveable_maze, obstacle_distance_maze, flee_region_bullet, flee_region_enemy, peek_region_enemy, _, end_peek_region, end_region = self.flee_mazes
         flee_region = flee_region_bullet + flee_region_enemy
 
         # 逃离子弹和敌人
         if flee_region[player.y, player.x] > 0:
-            if last_move_index != 1:
-                last_move_end = None
             flee_path = maze_utils.find_nearest_passable_path(moveable_maze, (player.x, player.y), flee_region,
                                                               distance_maze=obstacle_distance_maze, hate_factor=5,
-                                                              last_move_end=last_move_end)
+                                                              last_direction=last_direction)
             if flee_path:
                 return self.get_direction_from_next_point(player, flee_path[0]), flee_path, 1
 
@@ -763,6 +762,7 @@ class Map:
             path = maze_utils.find_best_path_to_region(
                 moveable_maze, (player.x, player.y), end_peek_region,
                 distance_maze=obstacle_distance_maze, hate_factor=5,
+                last_direction=last_direction,
             )
             if path:
                 return self.get_direction_from_next_point(player, path[0]), path, 3
@@ -770,6 +770,7 @@ class Map:
 
         path = maze_utils.find_best_path_to_region(moveable_maze, (player.x, player.y), end_region,
                                                    distance_maze=obstacle_distance_maze, hate_factor=5,
+                                                   last_direction=last_direction,
                                                    cost_map=2.0 * peek_region_enemy)
 
         if path:

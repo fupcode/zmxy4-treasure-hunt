@@ -3,6 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.entities import Enemy
 from zaomeng_hanghai.core.map import Map
 from zaomeng_hanghai.core.onnx_model import DetectionResult
@@ -56,7 +57,7 @@ class NextLevelTests(unittest.TestCase):
         env.enemy_list = Mock()
         env.map = Mock()
         env.map.get_shot_place_direction.return_value = (None, [], 0)
-        env.move_index, env.move_end = None, None
+        env.last_direction = Direction.Right
         env.new_level = False
         env.can_next_level = Mock(return_value=False)
         env.action_manager = Mock()
@@ -65,6 +66,35 @@ class NextLevelTests(unittest.TestCase):
         self.assertEqual(env.move_to_enemy_and_update(), 0)
         self.assertEqual(env.map.method_calls[0][0], "update")
         self.assertEqual(env.map.method_calls[1][0], "get_shot_place_direction")
+        env.map.get_shot_place_direction.assert_called_once_with(
+            env.player, last_direction=Direction.Right)
+        self.assertIsNone(env.last_direction)  # 本次执行了停留。
+
+    def test_executed_actions_update_direction_and_stop_clears_it(self):
+        env = Env.__new__(Env)
+        env.last_direction = None
+        env.action_manager = Mock()
+        env._take_expert_action(Direction.DownLeft, 'combat')
+        self.assertEqual(env.last_direction, Direction.DownLeft)
+        env.action_manager.take_action_direction.assert_called_once_with(Direction.DownLeft)
+        env._take_expert_action(None, 'combat')
+        self.assertIsNone(env.last_direction)
+
+    def test_debug_preview_preserves_last_executed_direction(self):
+        env = Env.__new__(Env)
+        env.last_direction = Direction.Right
+        env.player = Mock()
+        env.action_manager = Mock()
+        env.update = Mock(return_value=0)
+        env.update_navigation = Mock()
+        env.map = Mock()
+        env.map.get_shot_place_direction.return_value = (Direction.Left, [(1, 1)], 1)
+        env.render = Mock()
+        self.assertEqual(env.debug_step(), 0)
+        self.assertEqual(env.last_direction, Direction.Right)
+        env.map.get_shot_place_direction.assert_called_once_with(
+            env.player, last_direction=Direction.Right)
+        env.action_manager.take_action_direction.assert_not_called()
 
     def test_enemy_navigation_is_lazy_and_cached(self):
         game_map = Map(render_enabled=False)

@@ -77,3 +77,8 @@ direction_list = [Direction.Right, Direction.Down, Direction.Left, Direction.Up,
 
 # 用于map中移动的偏移量
 move_list = [(1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (1, -1), (-1, -1)]
+
+
+def get_direction_vector(direction: Direction | None):
+    """将实际按键方向转换为寻路使用的单位向量；停留没有方向偏好。"""
+    return None if direction is None else move_list[direction_list.index(direction)]

@@ -28,7 +28,9 @@ class NativeMazeTests(unittest.TestCase):
             targets = np.zeros(maze.shape, dtype=np.float32)
             targets[rng.random(maze.shape) < 0.03] = 0.7 if case % 4 == 0 else 1
             kwargs = dict(stride=(1, 5)[case % 2], allow_partial=case % 3 != 0,
-                          preferred_end=(11, 9) if case % 2 else None)
+                          last_direction=((0, 1), (1, 0), (0, -1), (-1, 0),
+                                          (1, 1), (1, -1), (-1, 1), (-1, -1))[case % 8],
+                          turn_cost=(0.0, 1.0, 2.0)[case % 3])
             if case % 3 == 0:
                 kwargs['danger'] = rng.integers(0, 5, size=maze.shape)
             if case % 3 == 1:

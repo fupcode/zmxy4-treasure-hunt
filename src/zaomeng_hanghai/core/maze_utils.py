@@ -8,7 +8,7 @@ from scipy.ndimage import distance_transform_cdt
 
 def calculate_distance_from_obstacles(maze):
     """
-    计算迷宫中每个通路点到最近障碍物的距离图。
+    计算迷宫中每个通路点到最近障碍物的曼哈顿距离，数组外侧也视为墙。
 
     参数:
     - maze: 二维布尔数组（bool numpy array），0 表示通路，1 表示障碍。
@@ -16,29 +16,10 @@ def calculate_distance_from_obstacles(maze):
     返回:
     - distance_from_obstacle: 二维数组，每个通路点到最近障碍物的距离，障碍物位置为 0。
     """
-    rows, cols = maze.shape
-    distance_from_obstacle = np.full((rows, cols), np.inf)
-
-    # 使用队列初始化 BFS
-    queue = deque()
-    for r in range(rows):
-        for c in range(cols):
-            if maze[r, c] == 1:
-                distance_from_obstacle[r, c] = 0
-                queue.append((c, r))  # 将所有障碍物点加入队列
-
-    # 通过 BFS 计算每个点到最近障碍物的最短距离
-    while queue:
-        c, r = queue.popleft()
-        current_dist = distance_from_obstacle[r, c]
-
-        for dc, dr in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # 四个方向
-            nc, nr = c + dc, r + dr
-            if 0 <= nr < rows and 0 <= nc < cols and distance_from_obstacle[nr, nc] == np.inf:
-                distance_from_obstacle[nr, nc] = current_dist + 1
-                queue.append((nc, nr))
-
-    return distance_from_obstacle
+    # 补一圈墙，使边缘通路到数组外侧的距离为 1。
+    obstacles = np.pad(maze == 1, 1, constant_values=True)
+    # 四方向 BFS 对应曼哈顿距离；保留 float64，供调用方写入和参与代价运算。
+    return distance_transform_cdt(~obstacles, metric="taxicab")[1:-1, 1:-1].astype(np.float64)
 
 
 def calculate_direction_penalty(current, prev, start, stride, max_penalty=10):
@@ -183,11 +164,16 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
 
 def _coarse_to_fine_region_path(maze, start, targets, distance_maze, hate_factor, **kwargs):
     """先搜索 5 格网格，未找到目标时再以 1 格完整搜索。"""
-    if not np.any((np.asarray(targets) > 0) & (maze == 0)):
+    passable_targets = (np.asarray(targets) > 0) & (maze == 0)
+    if not np.any(passable_targets):
         return []
     if distance_maze is None:
         distance_maze = calculate_distance_from_obstacles(maze)
     for stride in (5, 1):
+        # 跨步只能落在与起点坐标模 stride 同余的格子上；没有候选时直接细搜。
+        if stride > 1 and not np.any(passable_targets[start[1] % stride::stride,
+                                                      start[0] % stride::stride]):
+            continue
         path = _region_path(
             maze, start, targets, distance_maze, hate_factor,
             stride=stride, allow_partial=stride == 1, **kwargs,

@@ -8,6 +8,8 @@ import numpy as np
 from . import maze_utils
 from .observation import BULLET_FIELDS, ENEMY_FIELDS, ENEMY_FIRE_COOLDOWN_SCALE, MAX_BULLETS, MAX_ENEMIES
 from .constants import (
+    BULLET_AVOID_HEIGHT,
+    BULLET_AVOID_WIDTH,
     EXIT_DOWN,
     EXIT_LEFT,
     EXIT_RIGHT,
@@ -499,13 +501,14 @@ class Bullets(UserList[Bullet]):
         return False
 
     def is_safe(self, bullet, player):
-        if bullet.d == 0 and bullet.x > player.x + 6:
+        # 子弹中心必须完全越过含安全余量的碰撞范围，边界处仍算危险。
+        if bullet.d == 0 and bullet.x > player.x + BULLET_AVOID_WIDTH:
             return True
-        elif bullet.d == 1 and bullet.y > player.y + 4:
+        elif bullet.d == 1 and bullet.y > player.y + BULLET_AVOID_HEIGHT:
             return True
-        elif bullet.d == 2 and bullet.x < player.x - 6:
+        elif bullet.d == 2 and bullet.x < player.x - BULLET_AVOID_WIDTH:
             return True
-        elif bullet.d == 3 and bullet.y < player.y - 4:
+        elif bullet.d == 3 and bullet.y < player.y - BULLET_AVOID_HEIGHT:
             return True
         return False
 

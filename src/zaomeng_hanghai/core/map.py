@@ -6,6 +6,9 @@ from scipy.ndimage import binary_dilation
 from . import maze_utils
 from .direction import Direction, direction_list, move_list
 from .constants import (
+    BULLET_AVOID_HEIGHT,
+    BULLET_AVOID_WIDTH,
+    BULLET_MARGIN,
     COLLISION_DOWN,
     COLLISION_LEFT,
     COLLISION_RIGHT,
@@ -576,6 +579,21 @@ class Map:
     def update(self, player, bullets, enemy_list):
         self.flee_mazes = self.get_flee_maze(player, bullets, enemy_list)
 
+    @staticmethod
+    def get_bullet_danger_bounds(bullet):
+        """弹体后方与前进危险带的联合矩形；含安全余量，返回裁剪后的半开边界。"""
+        left, right = bullet.x - BULLET_AVOID_WIDTH, bullet.x + BULLET_AVOID_WIDTH + 1
+        up, down = bullet.y - BULLET_AVOID_HEIGHT, bullet.y + BULLET_AVOID_HEIGHT + 1
+        if bullet.d == 0:
+            right = bullet.x + FIRE_X_RANGE + BULLET_MARGIN + 1
+        elif bullet.d == 1:
+            down = bullet.y + FIRE_Y_RANGE + BULLET_MARGIN + 1
+        elif bullet.d == 2:
+            left = bullet.x - FIRE_X_RANGE - BULLET_MARGIN
+        elif bullet.d == 3:
+            up = bullet.y - FIRE_Y_RANGE - BULLET_MARGIN
+        return max(0, left), max(0, up), min(MAZE_WIDTH, right), min(MAZE_HEIGHT, down)
+
     def get_flee_maze(self, player, bullets, enemy_list):
         origin_maze = self.get_maze()
         can_fire_region = np.zeros(origin_maze.shape, dtype=bool)
@@ -590,8 +608,8 @@ class Map:
         obstacle_distance_maze = self.get_distance_maze().copy()
         end_region = np.ones((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
 
-        hit_height = HIT_HEIGHT
-        hit_width = HIT_WIDTH
+        hit_height = BULLET_AVOID_HEIGHT
+        hit_width = BULLET_AVOID_WIDTH
 
         flee_region_bullet = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         if self.level != 4:
@@ -599,25 +617,19 @@ class Map:
         else:
             bullet_const = 50
         for bullet in bullets:
-            range_left = max(0, bullet.x - FIRE_X_RANGE)
-            range_right = min(MAZE_WIDTH, bullet.x + FIRE_X_RANGE)
-            range_up = max(0, bullet.y - FIRE_Y_RANGE)
-            range_down = min(MAZE_HEIGHT, bullet.y + FIRE_Y_RANGE)
-            if bullet.d == 0:
-                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, bullet.x:range_right] += np.arange(
-                    range_right - bullet.x, 0, -1) + bullet_const
-            elif bullet.d == 1:
-                flee_region_bullet[bullet.y:range_down, bullet.x - hit_width:bullet.x + hit_width] += \
-                    np.arange(range_down - bullet.y, 0, -1)[..., np.newaxis] + bullet_const
-            elif bullet.d == 2:
-                flee_region_bullet[bullet.y - hit_height:bullet.y + hit_height, range_left:bullet.x] += np.arange(1,
-                                                                                                                 bullet.x - range_left + 1) + bullet_const
-            elif bullet.d == 3:
-                flee_region_bullet[range_up:bullet.y, bullet.x - hit_width:bullet.x + hit_width] += \
-                    np.arange(1, bullet.y - range_up + 1)[..., np.newaxis] + bullet_const
-            moveable_maze[bullet.y - hit_height:bullet.y + hit_height, bullet.x - hit_width:bullet.x + hit_width] = 1
-            obstacle_distance_maze[bullet.y - 4 * hit_height:bullet.y + 4 * hit_height,
-                                   bullet.x - 4 * hit_width:bullet.x + 4 * hit_width] = 0
+            left, up, right, down = self.get_bullet_danger_bounds(bullet)
+            # 以子弹位置计算梯度，避免地图裁剪改变同一位置的危险分值。
+            if bullet.d in (0, 2):
+                offset = (np.arange(left, right) - bullet.x) * (1 if bullet.d == 0 else -1)
+                weights = np.maximum(1, FIRE_X_RANGE + BULLET_MARGIN + 1 - offset)
+            else:
+                offset = (np.arange(up, down) - bullet.y) * (1 if bullet.d == 1 else -1)
+                weights = np.maximum(1, FIRE_Y_RANGE + BULLET_MARGIN + 1 - offset)[:, None]
+            flee_region_bullet[up:down, left:right] += weights + bullet_const
+            moveable_maze[max(0, bullet.y - hit_height):min(MAZE_HEIGHT, bullet.y + hit_height + 1),
+                          max(0, bullet.x - hit_width):min(MAZE_WIDTH, bullet.x + hit_width + 1)] = True
+            obstacle_distance_maze[max(0, bullet.y - 4 * hit_height):min(MAZE_HEIGHT, bullet.y + 4 * hit_height + 1),
+                                   max(0, bullet.x - 4 * hit_width):min(MAZE_WIDTH, bullet.x + 4 * hit_width + 1)] = 0
 
         flee_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         if self.level != 4:
@@ -692,6 +704,19 @@ class Map:
             flee_region_bullet_image = flee_region_bullet / (np.max(flee_region_bullet) + 1)
             mask = flee_region_bullet > 0
             self.debug_image[mask] = np.stack([flee_region_bullet_image, 255 * flee_region_bullet_image, 255 * flee_region_bullet_image], axis=-1).astype(np.uint8)[mask]
+            # 最后叠加边框，避免被危险热图覆盖。白色为原始 HIT 范围，
+            # 青色为含余量的寻路碰撞障碍；两者均是控制器估计，并非游戏引擎碰撞框。
+            for bullet in bullets:
+                for half_width, half_height, color in (
+                    (BULLET_AVOID_WIDTH, BULLET_AVOID_HEIGHT, (255, 255, 0)),
+                    (HIT_WIDTH, HIT_HEIGHT, (255, 255, 255)),
+                ):
+                    left, right = max(0, bullet.x - half_width), min(MAZE_WIDTH - 1, bullet.x + half_width)
+                    up, down = max(0, bullet.y - half_height), min(MAZE_HEIGHT - 1, bullet.y + half_height)
+                    self.debug_image[up, left:right + 1] = color
+                    self.debug_image[down, left:right + 1] = color
+                    self.debug_image[up:down + 1, left] = color
+                    self.debug_image[up:down + 1, right] = color
         else:
             self.debug_image = None
 

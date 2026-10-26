@@ -18,8 +18,9 @@ import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from zaomeng_hanghai.core.constants import (
+    BULLET_AVOID_HEIGHT, BULLET_AVOID_WIDTH,
     END_DOWN, END_LEFT, END_RIGHT, END_UP, EXIT_DOWN, EXIT_LEFT, EXIT_RIGHT, EXIT_UP,
-    FIRE_X_RANGE, FIRE_Y_RANGE, HIT_HEIGHT, HIT_WIDTH,
+    HIT_HEIGHT, HIT_WIDTH,
     MAP_DOWN, MAP_LEFT, MAP_RIGHT, MAP_UP, MAZE_HEIGHT, MAZE_WIDTH,
 )
 from zaomeng_hanghai.core.entities import Bullet, Bullets, EnemyList, FallingItems, Player
@@ -111,15 +112,11 @@ def add_bullet(ax, bullet, name, image_size, *, safe=False, show_lane=False):
                          (bullet.y + dy * 12) * height / MAZE_HEIGHT),
                 xytext=(bullet.x * width / MAZE_WIDTH, bullet.y * height / MAZE_HEIGHT),
                 arrowprops={"arrowstyle": "->", "color": color, "lw": 1.6})
-    add_box(ax, (bullet.x - HIT_WIDTH, bullet.y - HIT_HEIGHT,
-                 bullet.x + HIT_WIDTH, bullet.y + HIT_HEIGHT), image_size, color, linestyle=":")
+    add_box(ax, (bullet.x - BULLET_AVOID_WIDTH, bullet.y - BULLET_AVOID_HEIGHT,
+                 bullet.x + BULLET_AVOID_WIDTH + 1, bullet.y + BULLET_AVOID_HEIGHT + 1),
+            image_size, color, linestyle=":")
     if show_lane and not safe:
-        if dx:
-            bounds = (bullet.x + min(dx * FIRE_X_RANGE, 0), bullet.y - HIT_HEIGHT,
-                      bullet.x + max(dx * FIRE_X_RANGE, 0), bullet.y + HIT_HEIGHT)
-        else:
-            bounds = (bullet.x - HIT_WIDTH, bullet.y + min(dy * FIRE_Y_RANGE, 0),
-                      bullet.x + HIT_WIDTH, bullet.y + max(dy * FIRE_Y_RANGE, 0))
+        bounds = Map.get_bullet_danger_bounds(bullet)
         add_box(ax, bounds, image_size, color, fill_alpha=0.08, linewidth=0.7)
 
 

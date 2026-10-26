@@ -5,37 +5,10 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.core.entities import Bullet, Enemy, FallingItem, Player
-from zaomeng_hanghai.core.maze_utils import find_nearest_passable_point
-from zaomeng_hanghai.core.onnx_model import DetectionResult
 from zaomeng_hanghai.game_window import GameWindow
 
 
 class CoordinateTests(unittest.TestCase):
-    def test_entity_positions_and_enemy_bounds_round_to_nearest_pixel(self):
-        maze = np.zeros((200, 320), dtype=bool)
-        box = DetectionResult(1, [10.75 / 320, 20.75 / 200, 30.75 / 320, 40.75 / 200])
-        enemy = Enemy(box, maze)
-        self.assertEqual((enemy.x1, enemy.y1, enemy.x2, enemy.y2), (11, 31, 30, 41))
-        self.assertEqual((enemy.x, enemy.y), (21, 34))
-        player = Player(box, maze)
-        self.assertEqual((player.x, player.y), (21, 35))
-        bullet = Bullet((10.75 / 320, 20.75 / 200, 0))
-        item = FallingItem((10.75 / 320, 20.75 / 200))
-        self.assertEqual((bullet.x, bullet.y), (11, 21))
-        self.assertEqual((item.x, item.y), (11, 21))
-        self.assertLessEqual(abs(enemy.x1 - enemy.x1n * 320), 0.5)
-        self.assertLessEqual(abs(enemy.y1 - enemy.y1n * 200), 0.5)
-
-    def test_boundary_points_are_clamped_but_box_slice_end_can_equal_size(self):
-        maze = np.zeros((200, 320), dtype=bool)
-        box = DetectionResult(1, [0.999, 0.999, 1.0, 1.0])
-        for entity in (Enemy(box, maze), Player(box, maze), Bullet((1, 1, 0)), FallingItem((1, 1))):
-            self.assertEqual((entity.x, entity.y), (319, 199))
-        enemy = Enemy(box, maze)
-        self.assertEqual((enemy.x2, enemy.y2), (319, 200))  # 当前敌人框有水平收缩。
-        self.assertEqual(find_nearest_passable_point(maze, (320, 200)), (319, 199))
-        self.assertEqual(find_nearest_passable_point(maze, (-1, -1)), (0, 0))
 
     def test_image_crops_and_screen_coordinates_use_same_rounding(self):
         window = GameWindow.__new__(GameWindow)

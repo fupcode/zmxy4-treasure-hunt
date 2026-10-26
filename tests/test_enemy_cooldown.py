@@ -1,12 +1,10 @@
-"""敌人子弹冷却的更新、跨帧继承和观测编码。"""
+"""敌人射击冷却的更新与跨帧继承。"""
 
 import unittest
-from types import SimpleNamespace
 
 import numpy as np
 
 from zaomeng_hanghai.core.entities import Enemy, EnemyList
-from zaomeng_hanghai.core.observation import OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION
 from zaomeng_hanghai.core.onnx_model import DetectionResult
 
 
@@ -14,25 +12,19 @@ class EnemyCooldownTests(unittest.TestCase):
     def setUp(self):
         self.maze = np.zeros((200, 320), dtype=bool)
         self.box = DetectionResult(1, [0.4, 0.4, 0.45, 0.5])
-        self.player = SimpleNamespace(x=80, y=150, xn=0.25, yn=0.75)
 
     def test_new_enemy_is_ready_without_fired_flag(self):
         enemy = Enemy(self.box, self.maze)
         self.assertFalse(hasattr(enemy, "fired"))
         self.assertEqual(enemy.fire_cool_down, 0)
         self.assertFalse(enemy.is_safe())
-        self.assertEqual(enemy.state_encode(self.player)[7], 0)
-        self.assertEqual(OBSERVATION_SCHEMA_VERSION, 4)
-        self.assertEqual(OBSERVATION_DIM, 96)
 
     def test_normal_enemy_countdown_expiry_and_reset(self):
         enemy = Enemy(self.box, self.maze)
         enemy.set_fired(100)
         self.assertEqual(enemy.fire_cool_down, 3)
-        self.assertEqual(enemy.state_encode(self.player)[7], 1)
         enemy.update_fire_cool_down(101.5)
         self.assertEqual(enemy.fire_cool_down, 1.5)
-        self.assertEqual(enemy.state_encode(self.player)[7], 0.5)
         enemy.update_fire_cool_down(102.9)
         self.assertTrue(enemy.is_safe())
         enemy.update_fire_cool_down(103)
@@ -42,11 +34,10 @@ class EnemyCooldownTests(unittest.TestCase):
         enemy.set_fired(111)
         self.assertEqual(enemy.fire_cool_down, 3)
 
-    def test_boss_uses_one_second_and_common_encoding_scale(self):
+    def test_boss_uses_one_second_cooldown(self):
         enemy = Enemy(DetectionResult(1, [0.4, 0.4, 0.5, 0.5]), self.maze)
         enemy.set_fired(100)
         self.assertEqual(enemy.fire_cool_down, 1)
-        self.assertAlmostEqual(enemy.state_encode(self.player)[7], 1 / 3)
         enemy.update_fire_cool_down(101)
         self.assertFalse(enemy.is_safe())
 

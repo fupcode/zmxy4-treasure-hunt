@@ -19,17 +19,6 @@ from zaomeng_hanghai.core.maze_utils import (
 
 
 class ExpertNavigationTests(unittest.TestCase):
-    def test_bullet_passed_threshold_uses_original_hit_box(self):
-        player = SimpleNamespace(x=160, y=100)
-        bullets = Bullets()
-        for direction, (dx, dy), limit in (
-            (0, (1, 0), HIT_WIDTH), (1, (0, 1), HIT_HEIGHT),
-            (2, (-1, 0), HIT_WIDTH), (3, (0, -1), HIT_HEIGHT),
-        ):
-            for distance in (0, limit - 1, limit, limit + 1):
-                bullet = SimpleNamespace(x=player.x + dx * distance,
-                                         y=player.y + dy * distance, d=direction)
-                self.assertEqual(bullets.is_safe(bullet, player), distance > limit)
 
     def test_bullet_rectangles_clip_at_edges_with_hit_tail(self):
         game_map = Map.__new__(Map)

@@ -85,11 +85,5 @@ status = env.step(action)
 单关战斗超时为 `-3`，加载、自动过关及外部整局预算截断为 `-4`，详见环境文档。
 `Ctrl+C` 或异常退出时释放移动键和开火键。命令中的 `--episodes` 是尝试次数。
 
-## 离线测试
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_imitation.py -v
-```
-
-测试不启动游戏，覆盖清单过滤、整局划分、坏数据检查、BC 学习、critic 保持不变、
-PPO 接口一致性和 checkpoint 加载。
+项目当前以规则专家引擎为主，行为克隆与采集相关源码保留，对应学习测试已移除。
+现有引擎测试与手动诊断入口见 [测试说明](../tests/README.md)。

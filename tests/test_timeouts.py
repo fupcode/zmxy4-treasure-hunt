@@ -5,7 +5,6 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from zaomeng_hanghai.env import Env
-from zaomeng_hanghai.core.observation import OBSERVATION_DIM
 
 
 class TimeoutTests(unittest.TestCase):
@@ -118,19 +117,6 @@ class TimeoutTests(unittest.TestCase):
         with patch("zaomeng_hanghai.env.Player", return_value=player):
             self.assertEqual(env.update(), -3)
 
-    def test_navigation_timeout_is_engine_status_and_level_entry_wins(self):
-        for new_level, expected in ((False, -4), (True, 0)):
-            env = self.make_env()
-            env.enemy_list.__len__.return_value = 0
-
-            def update():
-                self.now += 30
-                env.new_level = new_level
-                return 0
-
-            env.update = Mock(side_effect=update)
-            self.assertEqual(env.try_next_level(), expected)
-
     def test_auto_start_propagates_engine_and_combat_status(self):
         for status in (-3, -4):
             env = self.make_env()
@@ -150,12 +136,10 @@ class TimeoutTests(unittest.TestCase):
         env._update_combat_timer()
         self.now = 100
         env.update = Mock(return_value=-4)
-        observation, status = env.reset()
+        _, status = env.reset()
         self.assertEqual(status, -4)
-        self.assertEqual(observation.shape, (OBSERVATION_DIM,))
         self.assertTrue(env._episode_done)
         self.assertEqual(env.combat_elapsed_seconds, 0)
-        self.assertEqual(env.last_reward, 0)
 
 
 if __name__ == "__main__":

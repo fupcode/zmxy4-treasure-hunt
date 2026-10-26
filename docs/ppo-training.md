@@ -128,11 +128,5 @@ PPO checkpoint 同样可交给推理入口：
 
 `--render` 显示环境调试窗口；`--hidden-sizes` 仅用于没有 `--init/--resume` 的新模型。
 
-离线测试：
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests -p test_ppo.py -v
-```
-
-测试覆盖 GAE 和跨局边界、actor/critic 学习、故障步丢弃、奖励去重、
-checkpoint 与优化器/RNG 恢复、连续训练、BC 初始化和中断恢复，不操作游戏窗口。
+项目当前以规则专家引擎为主，PPO 相关源码保留，对应学习测试已移除。
+现有引擎测试与手动诊断入口见 [测试说明](../tests/README.md)。

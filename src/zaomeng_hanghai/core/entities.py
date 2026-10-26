@@ -16,6 +16,7 @@ from .constants import (
     FIRE_Y_RANGE,
     MAZE_HEIGHT,
     MAZE_WIDTH,
+    VISION,
 )
 
 
@@ -183,6 +184,20 @@ class Enemy:
     def inherit(self, enemy):
         self.fire_cool_down = enemy.fire_cool_down
         self.fire_ready_time = enemy.fire_ready_time
+
+    def get_vision_region(self, shape, *, boss=False):
+        """穿墙的接敌搜索范围；冷却时消失，Boss 非冷却时覆盖全图。"""
+        region = np.zeros(shape, dtype=bool)
+        if self.is_safe():
+            return region
+        if boss:
+            region[:] = True
+        else:
+            height, width = shape
+            left, right = max(0, self.x - VISION), min(width, self.x + VISION + 1)
+            up, down = max(0, self.y - VISION), min(height, self.y + VISION + 1)
+            region[up:down, left:right] = True
+        return region
 
     def get_distance_array(self):
         distance_array = np.abs(self.x - np.arange(MAZE_WIDTH)) + np.abs(

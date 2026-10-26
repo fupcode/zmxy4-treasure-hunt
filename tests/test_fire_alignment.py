@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.constants import FIRE_X_RANGE, FIRE_Y_RANGE, MAZE_HEIGHT, MAZE_WIDTH
+from zaomeng_hanghai.core.constants import FIRE_X_RANGE, FIRE_Y_RANGE, MAZE_HEIGHT, MAZE_WIDTH, VISION
 from zaomeng_hanghai.core.entities import Enemy
 from zaomeng_hanghai.core.map import Map
 
@@ -61,7 +61,7 @@ class FireAlignmentTests(unittest.TestCase):
         for x, y in ((150, 40), (80, 100)):
             with self.subTest(x=x, y=y):
                 regions = self.regions([enemy], x, y)
-                self.assertEqual(regions[-1][y, x], 0)
+                self.assertEqual((regions[-1] + regions[-2])[y, x], 0)
                 player = SimpleNamespace(x=x, y=y)
                 self.assertIsNone(self.game_map.fire_direction(player, [enemy]))
                 direction, path, mode = self.game_map.get_shot_place_direction(player, None, None)
@@ -113,7 +113,7 @@ class FireAlignmentTests(unittest.TestCase):
         for level in (1, 4):
             self.game_map.level = level
             regions = self.regions(enemies)
-            targets = regions[-1]
+            targets = regions[-1] + regions[-2]
             self.assertTrue((targets > 0).any())
             for y, x in np.argwhere(targets > 0):
                 self.assertIsNotNone(self.game_map.fire_direction(SimpleNamespace(x=x, y=y), enemies))
@@ -122,6 +122,64 @@ class FireAlignmentTests(unittest.TestCase):
                 for enemy in enemies:
                     if not enemy.is_safe():
                         self.assertFalse(targets[:enemy.y2, enemy.x1:enemy.x2].any())
+
+    def test_vision_square_includes_corners_and_ignores_walls(self):
+        enemy = self.enemy()
+        self.maze[:, 140] = True
+        regions = self.regions([enemy])
+        vision = regions[4]
+        self.assertEqual(vision[enemy.y - VISION, enemy.x - VISION], 1)
+        self.assertEqual(vision[enemy.y + VISION, enemy.x + VISION], 1)
+        self.assertEqual(vision[enemy.y, enemy.x - VISION - 1], 0)
+        self.assertEqual(vision[enemy.y, 140], 1)
+        self.assertFalse(regions[-1][vision > 0].any())
+        self.assertFalse(regions[-2][vision == 0].any())
+        self.assertEqual(regions[5][enemy.y - VISION, enemy.x], 1)
+        self.assertEqual(regions[5][enemy.y - VISION, enemy.x - VISION], 0)
+        clipped = self.enemy(x=2, y=3, box=(0, 0, 5, 6)).get_vision_region(self.maze.shape)
+        self.assertTrue(clipped[0, 0])
+        self.assertFalse(clipped[-1, -1])
+
+    def test_cooldown_removes_vision_for_normal_and_boss(self):
+        enemy = self.enemy()
+        for level in (1, 4):
+            self.game_map.level = level
+            ready = self.regions([enemy])
+            self.assertTrue(ready[4].any())
+            if level == 4:
+                self.assertTrue(ready[4].all())
+                self.assertFalse(ready[-1].any())
+            enemy.fire_cool_down = 1
+            cooling = self.regions([enemy])
+            self.assertFalse(cooling[4].any())
+            self.assertFalse(cooling[5].any())
+            self.assertFalse(cooling[-2].any())
+            self.assertTrue(cooling[-1].any())
+            enemy.fire_cool_down = 0
+            self.assertTrue(self.regions([enemy])[4].any())
+
+    def test_cross_counts_overlap_and_keeps_same_enemy_for_local_targets(self):
+        first = self.enemy(x=100, y=100, box=(95, 95, 105, 105))
+        second = self.enemy(x=170, y=100, box=(165, 95, 175, 105), cooldown=1)
+        # x=170 在 first 视野外；second 冷却时不提供局部对齐范围。
+        regions = self.regions([first, second])
+        self.assertEqual(regions[5][50, 170], 0)
+        self.assertEqual(regions[-2][50, 170], 0)
+        second.fire_cool_down = 0
+        regions = self.regions([first, second])
+        self.assertEqual(regions[4][100, 135], 2)
+        self.assertEqual(regions[5][100, 135], 2)
+        self.assertTrue(np.all(regions[-1][regions[4] > 0] == 0))
+        # 在 first 的视野内只能命中冷却中的 second，不能借用 first 的视野做局部终点。
+        second = self.enemy(x=220, y=100, box=(215, 95, 225, 105), cooldown=1)
+        self.maze[100, 130] = True
+        regions = self.regions([first, second])
+        player = SimpleNamespace(x=160, y=100)
+        self.assertIsNotNone(self.game_map.fire_direction(player, [second]))
+        self.assertEqual(regions[4][100, 160], 1)
+        self.assertEqual(regions[5][100, 160], 1)
+        self.assertEqual(regions[-2][100, 160], 0)
+        self.assertEqual(regions[-1][100, 160], 0)
 
 
 if __name__ == "__main__":

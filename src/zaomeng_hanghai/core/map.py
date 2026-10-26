@@ -579,10 +579,13 @@ class Map:
     def get_flee_maze(self, player, bullets, enemy_list):
         origin_maze = self.get_maze()
         can_fire_region = np.zeros(origin_maze.shape, dtype=bool)
+        enemy_fire_regions = []
         for enemy in enemy_list:
             if enemy is not None:
                 enemy.prepare_navigation(origin_maze)
-                can_fire_region |= self.get_enemy_fire_region(enemy, origin_maze)
+                fire_region = self.get_enemy_fire_region(enemy, origin_maze)
+                can_fire_region |= fire_region
+                enemy_fire_regions.append((enemy, fire_region))
         moveable_maze = np.logical_or(origin_maze, self.map_template_without_exit)
         obstacle_distance_maze = self.get_distance_maze().copy()
         end_region = np.ones((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
@@ -629,24 +632,17 @@ class Map:
 
         peek_region_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
         peek_cross_enemy = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.int64)
-        peek_const = 70
-        for enemy in enemy_list:
-            if enemy is None or enemy.is_safe():
-                continue
-            enemy_distance_r = peek_const - enemy.distance_array
-            enemy_distance_r[enemy_distance_r < 0] = 0
-            peek_region_enemy += enemy_distance_r
-
-            # 菱形的有效范围为距离 < peek_const，切片右端不包含在内。
-            range_left = max(0, enemy.x - peek_const + 1)
-            range_right = min(MAZE_WIDTH, enemy.x + peek_const)
-            range_up = max(0, enemy.y - peek_const + 1)
-            range_down = min(MAZE_HEIGHT, enemy.y + peek_const)
-
-            mask = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=bool)
-            mask[max(range_up, enemy.y1):min(range_down, enemy.y2), range_left:range_right] = True
-            mask[range_up:range_down, max(range_left, enemy.x1):min(range_right, enemy.x2)] = True
-            peek_cross_enemy[mask] += 1
+        peek_can_fire_region = np.zeros(origin_maze.shape, dtype=bool)
+        for enemy, fire_region in enemy_fire_regions:
+            vision = enemy.get_vision_region(origin_maze.shape, boss=self.level == 4)
+            peek_region_enemy += vision
+            # 严格框内对齐与实际射击规则一致；先按同一敌人求交，再合并。
+            aligned = np.zeros(origin_maze.shape, dtype=bool)
+            aligned[max(0, enemy.y1 + 1):min(MAZE_HEIGHT, enemy.y2), :] = True
+            aligned[:, max(0, enemy.x1 + 1):min(MAZE_WIDTH, enemy.x2)] = True
+            cross = vision & aligned
+            peek_cross_enemy += cross
+            peek_can_fire_region |= cross & fire_region
 
         for enemy in enemy_list:
             if enemy is not None:
@@ -667,8 +663,10 @@ class Map:
         end_region[flee_region_bullet > 0] = 0
         end_region[flee_region_enemy > 0] = 0
         end_peek_region = np.zeros((MAZE_HEIGHT, MAZE_WIDTH), dtype=np.float32)
-        mask = peek_cross_enemy > 0
+        mask = peek_can_fire_region
         end_peek_region[mask] = end_region[mask]
+        # 局部终点先从共同评分中提取；全局终点仅保留有效视野之外的位置。
+        end_region[peek_region_enemy > 0] = 0
 
         """
         调试图由 cv2.imshow 按 BGR 显示。
@@ -713,10 +711,12 @@ class Map:
             if flee_path:
                 return self.get_direction_from_next_point(player, flee_path[0]), flee_path, 1
 
-        # 已处于安全射击位置就停留，避免进入对齐线后又撤离或反复换位。
+        in_vision = peek_region_enemy[player.y, player.x] > 0
+        target_region = end_peek_region if in_vision else end_region
+        # 已处于当前搜索范围内的安全射击位置就停留。
         if (not moveable_maze[player.y, player.x]
                 and flee_region[player.y, player.x] == 0
-                and end_region[player.y, player.x] > 0):
+                and target_region[player.y, player.x] > 0):
             return None, [], 0
 
         # 寻路的危险屏蔽不能污染缓存，否则下一次脱险仍会被旧屏蔽困住。
@@ -727,8 +727,8 @@ class Map:
         up, down = max(0, player.y - 10), min(height, player.y + 11)
         moveable_maze[up:down, left:right] |= flee_region[up:down, left:right] > 0
 
-        # 优先在附近寻找对齐射击位置；没有局部路径时回退到全局寻路。
-        if self.level != 4 and peek_region_enemy[player.y, player.x] > 0:
+        # 视野内只做局部寻路（含 Boss）；无可达终点时原地等待。
+        if in_vision:
             peek_maze = moveable_maze | (peek_region_enemy == 0)
             path = maze_utils.find_best_path_to_region(
                 peek_maze, (player.x, player.y), end_peek_region,
@@ -736,6 +736,7 @@ class Map:
             )
             if path:
                 return self.get_direction_from_next_point(player, path[0]), path, 3
+            return None, [], 3
 
         path = maze_utils.find_best_path_to_region(moveable_maze, (player.x, player.y), end_region,
                                                    distance_maze=obstacle_distance_maze, hate_factor=5)

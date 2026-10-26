@@ -38,10 +38,44 @@ class ExpertNavigationTests(unittest.TestCase):
                         game_map.get_shot_place_direction(SimpleNamespace(x=x, y=y), None, None)
                     expected = maze | (((bullets + enemies) > 0)
                                        & (abs(xx - x) <= 10) & (abs(yy - y) <= 10))
-                    self.assertEqual(search.call_count, 2 if local_peek else 1)
+                    self.assertEqual(search.call_count, 1)
                     for invocation in search.call_args_list:
                         np.testing.assert_array_equal(invocation.args[0], expected)
                     self.assertEqual(np.count_nonzero(maze), 1)
+
+    def test_local_failure_waits_without_global_fallback_including_boss(self):
+        shape = (20, 30)
+        for level in (1, 4):
+            game_map = Map.__new__(Map)
+            game_map.level = level
+            empty = np.zeros(shape)
+            global_targets = empty.copy()
+            global_targets[10, 25] = 1
+            vision = empty.copy()
+            vision[:, :15] = 1
+            game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
+                                   vision, empty, empty, global_targets)
+            with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
+                       return_value=[]) as search:
+                result = game_map.get_shot_place_direction(SimpleNamespace(x=5, y=10), None, None)
+            self.assertEqual(result, (None, [], 3))
+            search.assert_called_once()
+            np.testing.assert_array_equal(search.call_args.args[2], empty)
+
+    def test_outside_vision_searches_global_targets(self):
+        game_map = Map.__new__(Map)
+        game_map.level = 1
+        shape = (20, 30)
+        empty = np.zeros(shape)
+        targets = empty.copy()
+        targets[10, 20] = 1
+        game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
+                               empty, empty, empty, targets)
+        direction, path, mode = game_map.get_shot_place_direction(
+            SimpleNamespace(x=5, y=10), None, None)
+        self.assertIsNotNone(direction)
+        self.assertEqual(mode, 4)
+        self.assertEqual(path[-1], (20, 10))
 
     def test_overlapping_bullet_danger_adds_and_is_order_independent(self):
         shape = (MAZE_HEIGHT, MAZE_WIDTH)

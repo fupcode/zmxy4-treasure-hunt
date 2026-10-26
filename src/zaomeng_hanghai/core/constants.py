@@ -34,4 +34,4 @@ END_DOWN = 0.736
 FIRE_X_RANGE = int(round(0.3 * MAZE_WIDTH))
 FIRE_Y_RANGE = int(round(0.5 * MAZE_HEIGHT))
 
-VISION = int(round(0.2 * MAZE_WIDTH))
+VISION = 66

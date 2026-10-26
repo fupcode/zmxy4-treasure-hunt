@@ -10,18 +10,6 @@ from zaomeng_hanghai.core.onnx_model import OnnxModel, DetectionResult
 from zaomeng_hanghai.core.action_manager import key_up, key_up_all
 
 
-# 耗时记录装饰器
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        print(f"Function '{func.__name__}' of GameWindow executed in {end_time - start_time:.4f} seconds.")
-        return result
-
-    return wrapper
-
-
 def set_cursor_pos(x, y):
     win32api.SetCursorPos((x, y))
 

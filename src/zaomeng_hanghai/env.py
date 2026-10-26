@@ -18,18 +18,6 @@ from zaomeng_hanghai.core.observation import (
 from zaomeng_hanghai.core.rewards import RewardConfig, calculate_reward
 
 
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        elapse_time = time.time() - start_time
-        if elapse_time > 0.02:
-            print(f"Function '{func.__name__}' of Env executed in {elapse_time:.4f} seconds.")
-        return result
-
-    return wrapper
-
-
 class FrameRateCalculator:
     def __init__(self):
         self.reset()

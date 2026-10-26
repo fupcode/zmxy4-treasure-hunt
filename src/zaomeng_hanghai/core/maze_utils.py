@@ -6,18 +6,6 @@ import math
 from scipy.ndimage import distance_transform_cdt
 
 
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        elapse_time = time.time() - start_time
-        if elapse_time > 0.03:
-            print(f"Function '{func.__name__}' of maze_utils executed in {elapse_time:.4f} seconds.")
-        return result
-
-    return wrapper
-
-
 def calculate_distance_from_obstacles(maze):
     """
     计算迷宫中每个通路点到最近障碍物的距离图。

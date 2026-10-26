@@ -1,0 +1,15 @@
+[package]
+name = "zaomeng-hanghai-maze"
+version = "0.1.0"
+edition = "2021"
+publish = false
+include = ["rust/**", "Cargo.toml", "Cargo.lock", "pyproject.toml", "README.md"]
+
+[lib]
+name = "_maze_native"
+crate-type = ["cdylib"]
+path = "rust/lib.rs"
+
+[dependencies]
+pyo3 = "0.28"
+numpy = "0.28"

@@ -25,8 +25,14 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.8.22,<0.9.0"]
-build-backend = "uv_build"
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "src"
+module-name = "zaomeng_hanghai._maze_native"
+features = ["pyo3/extension-module"]
+exclude = ["**/*.pdb"]
 
 [tool.uv.sources]
 pydist = { git = "ssh://git@github.com/fupcode/pydist.git" }

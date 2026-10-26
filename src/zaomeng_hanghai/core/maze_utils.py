@@ -1,9 +1,15 @@
 import numpy as np
 from collections import deque
 import heapq
-import time
 import math
 from scipy.ndimage import distance_transform_cdt
+
+try:
+    from .._maze_native import region_path as _native_region_path
+except ModuleNotFoundError as exc:
+    if exc.name != "zaomeng_hanghai._maze_native":
+        raise
+    _native_region_path = None
 
 
 def calculate_distance_from_obstacles(maze):
@@ -73,24 +79,38 @@ def find_nearest_passable_point(maze, start):
 
 
 def _region_path(maze, start, targets, distance_maze, hate_factor,
-                 danger=None, max_time=0.02, preferred_end=None, stride=1,
+                 danger=None, preferred_end=None, stride=1,
                  allow_partial=True, cost_map=None):
     """指定步长的 A*；跨步路径逐格检查，不额外检查斜向两侧。
 
-    max_time 是找到首条路径后的择优预算；预算耗尽时仍先找到可达目标，
-    防止较远的窄目标因超时而始终返回空路径。无法完全脱险时返回风险更低的位置。
+    无时间限制；找到评分大于 0.8 的目标即返回，否则遍历可达节点选取最高分目标。
+    脱险时找到安全目标即返回，无法完全脱险时返回风险更低的位置。
     cost_map 是非负逐格额外成本，仅影响路径成本，不启用 danger 的脱险语义。
     """
     rows, cols = maze.shape
-    targets = np.asarray(targets).copy()
-    targets[maze != 0] = 0
+    targets = np.asarray(targets)
+    blocked_targets = (maze != 0) & (targets != 0)
+    if np.any(blocked_targets):
+        targets = targets.copy()
+        targets[blocked_targets] = 0
     if not np.any(targets):
         return []
     goal_distance = distance_transform_cdt(targets == 0, metric="chessboard")
     if distance_maze is None:
         distance_maze = calculate_distance_from_obstacles(maze)
     min_step_cost = 1 + hate_factor / (np.max(distance_maze) + 1)
-    started = time.perf_counter()
+    if _native_region_path is not None:
+        # 仅在 dtype 或布局不匹配时转换；Rust 持有 GIL，零拷贝借用这些数组。
+        return _native_region_path(
+            np.ascontiguousarray(maze, dtype=np.bool_), start,
+            np.ascontiguousarray(targets, dtype=np.float64),
+            np.ascontiguousarray(goal_distance, dtype=np.int32),
+            np.ascontiguousarray(distance_maze, dtype=np.float64),
+            hate_factor, float(min_step_cost),
+            None if danger is None else np.ascontiguousarray(danger, dtype=np.float64),
+            preferred_end, stride, allow_partial,
+            None if cost_map is None else np.ascontiguousarray(cost_map, dtype=np.float64),
+        )
     costs = {start: 0.0}
     parents = {}
     remaining = float(goal_distance[start[1], start[0]])
@@ -121,11 +141,9 @@ def _region_path(maze, start, targets, distance_maze, hate_factor,
                 return path_to(current)
             if value > best_value:
                 best, best_value = current, value
-            if value > 0.8 or time.perf_counter() - started >= max_time:
+            if value > 0.8:
                 return path_to(best)
             # 允许穿过低分候选区域，继续寻找更合适的射击位置。
-        if best is not None and time.perf_counter() - started >= max_time:
-            return path_to(best)
         for dx, dy in directions:
             nx, ny = cx + dx * stride, cy + dy * stride
             if not (0 <= nx < cols and 0 <= ny < rows) or maze[ny, nx]:
@@ -250,7 +268,7 @@ def find_path_to_point(maze, start, end, stride: int = 10, distance_maze=None, h
 
 
 def find_best_path_to_region(maze, start, end_region, distance_maze=None, hate_factor=1,
-                             max_time=0.02, cost_map=None):
+                             cost_map=None):
     """按目标评分择优；先粗后细搜索，可传入与地图同形状的非负逐格额外成本。"""
     return _coarse_to_fine_region_path(maze, start, end_region, distance_maze,
-                              hate_factor, max_time=max_time, cost_map=cost_map)
+                              hate_factor, cost_map=cost_map)

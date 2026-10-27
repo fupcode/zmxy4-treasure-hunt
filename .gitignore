@@ -91,6 +91,7 @@ version.json
 *.png
 !src/zmxy4_treasure_hunt/maze/assets/edge_mask.png
 *.onnx
+!weights/best.onnx
 *.pt
 
 images/

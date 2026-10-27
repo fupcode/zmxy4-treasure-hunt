@@ -1,4 +1,6 @@
 import unittest
+import json
+from pathlib import Path
 
 import numpy as np
 
@@ -158,3 +160,35 @@ class NavigationTests(unittest.TestCase):
                 self.assertEqual(done.path, [])
                 self.assertEqual(len(visited), 8)
                 self.assertEqual(np.count_nonzero(cells == 4), 8)
+
+    def test_recorded_vertical_scroll_is_not_blocked_by_horizontal_inputs(self):
+        path = Path(__file__).with_name('fixtures') / 'camera_scroll_alignment.json'
+        data = json.loads(path.read_text(encoding='utf-8'))
+        for history in (data['move_history'], []):
+            with self.subTest(history=history):
+                cells = load_weekday_map(data['weekday']).cells
+                maze = Maze(991, 550, cells)
+                maze.view_start = tuple(data['previous_view_start'])
+                maze.char_coord = tuple(data['previous_player'])
+                maze.move_history.extend(history)
+                maze.grid.vertical_start_small = data['vertical_start_small']
+                maze.grid.horizontal_start_small = data['horizontal_start_small']
+                result = maze.load_view(np.array(data['observed_grid'], np.uint8), data['view_char'])
+                self.assertEqual(maze.view_start, tuple(data['expected_view_start']))
+                self.assertEqual(maze.char_coord, tuple(data['expected_player']))
+                accepted = [item for item in maze.last_alignment['candidates'] if item['reason'] == 'accepted']
+                self.assertEqual(len(accepted), 1)
+                self.assertGreater(accepted[0]['score'], 0.95)
+                self.assertEqual(maze.maze[result.path[-1]], 4)
+                np.testing.assert_array_equal(maze.maze, cells)
+
+    def test_horizontal_view_change_is_allowed_while_recent_inputs_are_vertical(self):
+        cells = load_weekday_map(3).cells
+        maze = Maze(100, 100, cells)
+        maze.load_view(cells[:15, :15], (1, 1))
+        for _ in range(3):
+            maze.record_movements('W')
+        maze.grid.vertical_start_small = False
+        maze.load_view(cells[:15, 1:16], (1, 0))
+        self.assertEqual(maze.view_start, (0, 1))
+        self.assertEqual(maze.char_coord, (1, 1))

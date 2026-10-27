@@ -6,7 +6,7 @@ import numpy as np
 from zmxy4_treasure_hunt.maze.capture import ScreenCapture
 from zmxy4_treasure_hunt.maze.map_templates import MapTemplate
 from zmxy4_treasure_hunt.maze.controls import MovementController
-from zmxy4_treasure_hunt.maze.navigation import NavigationResult
+from zmxy4_treasure_hunt.maze.navigation import MapAlignmentError, NavigationResult
 from zmxy4_treasure_hunt.maze.ft import FindTreasure
 from zmxy4_treasure_hunt.maze.vision import Character, DetectionError, WallObservation
 
@@ -73,12 +73,12 @@ class ControllerTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
-    def make_runner(self):
+    def make_runner(self, debug=False):
         capture, controller = Mock(), Mock()
         cells = np.full((5, 7), 2, dtype=np.uint8)
         cells[1, 1:6] = [1, 3, 1, 3, 4]
         runner = FindTreasure(capture=capture, controller=controller, region=(10, 20, 610, 420),
-                              map_template=MapTemplate(1, '测试地图', cells))
+                              map_template=MapTemplate(1, '测试地图', cells), debug=debug)
         return runner, capture, controller
 
     def test_failed_initial_location_closes_capture_and_releases_keys(self):
@@ -122,7 +122,7 @@ class RunnerTests(unittest.TestCase):
         controller.apply.assert_not_called()
 
     def test_main_error_closes_devices_and_windows(self):
-        runner, capture, controller = self.make_runner()
+        runner, capture, controller = self.make_runner(debug=True)
         with patch('zmxy4_treasure_hunt.maze.ft.cv2.namedWindow', side_effect=RuntimeError('no GUI')), \
              patch('zmxy4_treasure_hunt.maze.ft.cv2.destroyAllWindows') as destroy:
             with self.assertRaises(RuntimeError):
@@ -153,7 +153,7 @@ class RunnerTests(unittest.TestCase):
         controller.click.assert_not_called()
 
     def test_fake_treasure_keeps_map_location_grid_and_movement_history(self):
-        runner, _, _ = self.make_runner()
+        runner, _, _ = self.make_runner(debug=True)
         maze = runner.maze
         view = np.full((5, 7), 2, dtype=np.uint8)
         view[1, 1:6] = [1, 3, 1, 3, 4]
@@ -216,3 +216,91 @@ class RunnerTests(unittest.TestCase):
         with patch.object(runner.mask_restorer, 'restore', side_effect=AssertionError('不得反算黑屏检测帧')), \
              patch('zmxy4_treasure_hunt.maze.ft.time.sleep'):
             self.assertTrue(runner.next())
+
+    def test_alignment_failure_stops_before_export_and_preserves_original_error(self):
+        runner, capture, controller = self.make_runner(debug=True)
+        capture.grab.return_value = np.zeros((400, 600, 3), np.uint8)
+        failure = MapAlignmentError('alignment failed')
+        events = Mock()
+        events.attach_mock(controller.stop, 'stop')
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', return_value=Character(50, 50, 10)), \
+             patch('zmxy4_treasure_hunt.maze.ft.detect_walls'), \
+             patch.object(runner.maze, 'analyze', side_effect=failure), \
+             patch('zmxy4_treasure_hunt.maze.ft.export_alignment_debug', return_value=('debug-path', {})) as export:
+            events.attach_mock(export, 'export')
+            with self.assertRaises(MapAlignmentError) as caught:
+                runner.step()
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(events.mock_calls[0], call.stop())
+        export.assert_called_once()
+        controller.apply.assert_not_called()
+        self.assertTrue(any('debug-path' in note for note in failure.__notes__))
+
+    def test_debug_export_failure_does_not_hide_original_error(self):
+        runner, capture, controller = self.make_runner(debug=True)
+        capture.grab.return_value = np.zeros((400, 600, 3), np.uint8)
+        failure = DetectionError('missing character')
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', side_effect=failure), \
+             patch('zmxy4_treasure_hunt.maze.ft.export_alignment_debug', side_effect=OSError('read only')):
+            with self.assertRaises(DetectionError) as caught:
+                runner.step()
+        self.assertIs(caught.exception, failure)
+        self.assertTrue(any('read only' in note for note in failure.__notes__))
+        controller.stop.assert_called_once()
+
+    def test_normal_mode_main_never_uses_debug_window(self):
+        runner, capture, controller = self.make_runner()
+        self.assertFalse(runner.debug)
+        with patch.object(runner, 'monitor'), \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.namedWindow') as named, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.moveWindow') as move, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.resizeWindow') as resize, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.setWindowProperty') as properties, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.destroyAllWindows') as destroy, \
+             patch('zmxy4_treasure_hunt.maze.ft.time.sleep'):
+            runner.main()
+        for operation in (named, move, resize, properties, destroy):
+            operation.assert_not_called()
+        controller.stop.assert_called_once()
+        capture.close.assert_called_once()
+
+    def test_normal_mode_monitor_never_renders_or_polls_gui_events(self):
+        runner, _, _ = self.make_runner()
+        result = NavigationResult(np.zeros((5, 7), np.uint8), [], '', False, True)
+        with patch.object(runner, 'step', return_value=result), patch.object(runner, 'render') as render, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.waitKey') as wait:
+            runner.monitor()
+        render.assert_not_called()
+        wait.assert_not_called()
+
+    def test_normal_mode_alignment_failure_never_exports_diagnostics(self):
+        runner, capture, controller = self.make_runner()
+        capture.grab.return_value = np.zeros((400, 600, 3), np.uint8)
+        failure = DetectionError('missing character')
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', side_effect=failure), \
+             patch('zmxy4_treasure_hunt.maze.ft.export_alignment_debug') as export:
+            with self.assertRaises(DetectionError) as caught:
+                runner.step()
+        export.assert_not_called()
+        self.assertIs(caught.exception, failure)
+        self.assertFalse(hasattr(failure, '__notes__'))
+        controller.stop.assert_called_once()
+
+    def test_debug_monitor_renders_and_accepts_escape(self):
+        runner, _, _ = self.make_runner(debug=True)
+        result = NavigationResult(np.zeros((5, 7), np.uint8), [], '', False)
+        with patch.object(runner, 'step', return_value=result) as step, \
+             patch.object(runner, 'render') as render, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.waitKey', return_value=27):
+            runner.monitor()
+        step.assert_called_once()
+        render.assert_called_once()
+
+    def test_cli_debug_is_opt_in(self):
+        from zmxy4_treasure_hunt.maze.ft import main
+
+        for arguments, expected in (([], False), (['--debug'], True)):
+            with self.subTest(arguments=arguments), patch('zmxy4_treasure_hunt.maze.ft.FindTreasure') as runner:
+                self.assertEqual(main(arguments), 0)
+                runner.assert_called_once_with(interval=0.05, debug=expected)
+                runner.return_value.main.assert_called_once()

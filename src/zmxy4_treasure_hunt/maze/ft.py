@@ -9,6 +9,7 @@ import numpy as np
 
 from .capture import ScreenCapture
 from .controls import MovementController
+from .diagnostics import export_alignment_debug
 from .map_templates import load_weekday_map
 from .mask import MaskRestorer
 from .navigation import Maze
@@ -27,10 +28,11 @@ MAP_COLORS = np.array([
 
 
 class FindTreasure:
-    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05, map_template=None):
+    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05, map_template=None, debug=False):
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("interval 必须为正数且有限")
         self.interval = interval
+        self.debug = debug
         self.template = map_template if map_template is not None else load_weekday_map()
         self.capture = capture if capture is not None else ScreenCapture()
         self.controller = controller if controller is not None else MovementController()
@@ -65,10 +67,11 @@ class FindTreasure:
 
     def main(self):
         try:
-            cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-            cv2.moveWindow(WINDOW_NAME, 0, 0)
-            cv2.resizeWindow(WINDOW_NAME, 290, 322)
-            cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
+            if self.debug:
+                cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+                cv2.moveWindow(WINDOW_NAME, 0, 0)
+                cv2.resizeWindow(WINDOW_NAME, 290, 322)
+                cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
             left, top, _, _ = self.region
             self.controller.click(left + min(10, self.width - 1), top + min(10, self.height - 1))
             time.sleep(0.1)
@@ -77,10 +80,13 @@ class FindTreasure:
             try:
                 self.close()
             finally:
-                cv2.destroyAllWindows()
+                if self.debug:
+                    cv2.destroyAllWindows()
 
     def step(self):
         """执行一帧；识别或规划失败时立即松开方向键。"""
+        raw_image = frame = character = observation = None
+        self.maze.last_view = self.maze.last_view_char = self.maze.last_alignment = None
         try:
             raw_image = self.capture.grab(self.region)
             frame = self.mask_restorer.restore(raw_image)
@@ -90,8 +96,17 @@ class FindTreasure:
             self.controller.apply(result.movements)
             self.maze.record_movements(result.movements)
             return result
-        except BaseException:
+        except BaseException as exc:
             self.controller.stop()
+            if self.debug and isinstance(exc, ValueError):
+                try:
+                    output, _ = export_alignment_debug(
+                        self.maze, self.template, exc, raw=raw_image, frame=frame,
+                        character=character, observation=observation, region=self.region)
+                    exc.add_note(f"诊断现场已保存：{output}")
+                    print(f"诊断现场已保存：{output}")
+                except Exception as save_error:
+                    exc.add_note(f"诊断现场保存失败：{save_error}")
             raise
 
     def monitor(self):
@@ -99,9 +114,10 @@ class FindTreasure:
         while True:
             started = time.monotonic()
             result = self.step()
-            self.render(result.image, elapsed)
-            if cv2.waitKey(1) & 0xFF == 27:
-                return
+            if self.debug:
+                self.render(result.image, elapsed)
+                if cv2.waitKey(1) & 0xFF == 27:
+                    return
             if result.complete:
                 print("已检查所有宝箱")
                 return
@@ -145,11 +161,12 @@ class FindTreasure:
 def main(argv=None):
     parser = argparse.ArgumentParser(description="迷宫自动寻宝（DXcam BGR 截图）")
     parser.add_argument("--interval", type=float, default=0.05, help="最小循环间隔，单位秒，默认 0.05")
+    parser.add_argument("--debug", action="store_true", help="显示左上角监控图，并在识别或定位失败时保存诊断现场")
     args = parser.parse_args(argv)
     if not math.isfinite(args.interval) or args.interval <= 0:
         parser.error("--interval 必须为正数且有限")
     try:
-        FindTreasure(interval=args.interval).main()
+        FindTreasure(interval=args.interval, debug=args.debug).main()
     except KeyboardInterrupt:
         return 130
     return 0

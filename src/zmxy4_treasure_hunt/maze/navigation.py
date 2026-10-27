@@ -13,6 +13,10 @@ UNKNOWN, ROAD, WALL, PASSAGE, TREASURE, PLAYER = range(6)
 class MapAlignmentError(ValueError):
     """当前局部视图无法在完整地图上可靠定位。"""
 
+    def __init__(self, message, details=None):
+        super().__init__(message)
+        self.details = details
+
 
 class Graph:
     def __init__(self, maze, r0=1, c0=1):
@@ -97,20 +101,29 @@ class Maze:
         self.char_coord = (1, 1)
         self.char_offset = (0, 0)
         self.move_history = deque(maxlen=3)
+        self.last_view = None
+        self.last_view_char = None
+        self.last_alignment = None
 
-    def _score(self, view, start):
+    def comparison(self, view, start):
         h, w = view.shape
         row, col = start
         expected = self.layout[row:row + h, col:col + w]
         # 房间和交点本来就具有固定奇偶排列，只比较能区分地图的连接格。
         rr, cc = np.indices(view.shape)
         mask = ((rr + row + cc + col) % 2 == 1) & (view != UNKNOWN)
-        if not mask.any():
-            return 0.0
+        count = int(mask.sum())
+        mismatches = mask & ((view == WALL) != (expected == WALL))
+        unexpected = (view == TREASURE) & (expected != TREASURE)
+        wall_score = float(1 - mismatches.sum() / count) if count else 0.0
         # 可见宝箱提供额外定位约束；看不到宝箱不表示模板中的宝箱已消失。
-        if np.any((view == TREASURE) & (expected != TREASURE)):
-            return 0.0
-        return float(np.mean((view[mask] == WALL) == (expected[mask] == WALL)))
+        return {"score": 0.0 if unexpected.any() else wall_score,
+                "wall_score": wall_score, "compared_cells": count,
+                "mismatch_cells": np.argwhere(mismatches).tolist(),
+                "unexpected_treasures": np.argwhere(unexpected).tolist()}
+
+    def _score(self, view, start):
+        return self.comparison(view, start)["score"]
 
     def locate_view(self, view, view_char):
         h, w = view.shape
@@ -122,33 +135,51 @@ class Maze:
             candidates = [(self.char_coord[0] - int(view_char[0]),
                            self.char_coord[1] - int(view_char[1]))]
         else:
-            history = set(''.join(self.move_history))
+            # 摄像机缓动、视区裁切和首条可见格线变化可能滞后于按键。
+            # 例如当前按 D 时，纵向视图原点仍可能变化，不能据此锁死纵轴。
             candidates = ((self.view_start[0] + dy, self.view_start[1] + dx)
-                          for dy in range(-2 if 'W' in history else 0, 3 if 'S' in history else 1)
-                          for dx in range(-2 if 'A' in history else 0, 3 if 'D' in history else 1))
+                          for dy in range(-2, 3)
+                          for dx in range(-2, 3))
         scores = {}
+        details = {"phase": "initial" if self.view_start is None else "tracking",
+                   "threshold": 0.88, "view_shape": list(view.shape),
+                   "view_char": [int(value) for value in view_char],
+                   "previous_view_start": self.view_start, "previous_player": self.char_coord,
+                   "move_history": list(self.move_history), "parity": [row_parity, col_parity],
+                   "candidates": []}
+        self.last_alignment = details
         for row, col in candidates:
-            if (row < 0 or col < 0 or row + h > rows or col + w > cols
-                    or row % 2 != row_parity or col % 2 != col_parity):
+            candidate = {"start": [row, col]}
+            details["candidates"].append(candidate)
+            if row < 0 or col < 0 or row + h > rows or col + w > cols:
+                candidate["reason"] = "out_of_bounds"
+                continue
+            if row % 2 != row_parity or col % 2 != col_parity:
+                candidate["reason"] = "grid_parity"
                 continue
             player = row + int(view_char[0]), col + int(view_char[1])
             if self.maze[player] == WALL:
+                candidate["reason"] = "player_in_wall"
                 continue
-            score = self._score(view, (row, col))
+            candidate.update(self.comparison(view, (row, col)))
+            score = candidate["score"]
+            candidate["reason"] = "accepted" if score >= 0.88 else "low_score"
             if score >= 0.88:
                 scores[row, col] = score
         if not scores:
-            raise MapAlignmentError("画面与完整地图不匹配，请检查当日地图和格网识别")
+            best = max((item["score"] for item in details["candidates"] if "score" in item), default=None)
+            summary = f"最佳得分 {best:.3f} < 0.880" if best is not None else "候选均因边界、格网奇偶或人物落墙被拒绝"
+            raise MapAlignmentError(f"画面与完整地图不匹配，请检查当日地图和格网识别（{summary}）", details)
         best_score = max(scores.values())
         best = [cell for cell, score in scores.items() if abs(score - best_score) < 1e-9]
         if len(best) == 1:
             return best[0]
         if self.view_start in best:
             return self.view_start
-        raise MapAlignmentError("画面可匹配完整地图的多个位置，无法确定人物坐标")
+        raise MapAlignmentError("画面可匹配完整地图的多个位置，无法确定人物坐标", details)
 
     def record_movements(self, movements):
-        """仅在控制器实际执行动作后记录，约束下一帧的定位范围。"""
+        """记录实际执行的动作，供诊断回放使用。"""
         self.move_history.append(movements)
 
     def remove_treasure(self, cell):
@@ -158,6 +189,7 @@ class Maze:
             self.graph = None
 
     def analyze(self, observation, character):
+        self.last_view = self.last_view_char = self.last_alignment = None
         self.grid.update(observation.vertical_lines, observation.horizontal_lines)
         view, view_char, self.char_offset = self.grid.analyze(
             observation.image, (character.x, character.y), observation.treasures, observation.valid_pixels
@@ -166,6 +198,9 @@ class Maze:
 
     def load_view(self, view, view_char):
         view = np.asarray(view)
+        self.last_alignment = None
+        self.last_view = view.copy()
+        self.last_view_char = tuple(int(value) for value in view_char)
         h, w = view.shape
         if not (0 <= view_char[0] < h and 0 <= view_char[1] < w):
             raise MapAlignmentError("人物位置超出局部视图")

@@ -6,7 +6,7 @@ import win32gui
 import traceback
 from PIL import Image, ImageGrab, ImageTk
 
-from zmxy4_treasure_hunt.voyage.env import Env, auto_loop
+from zmxy4_treasure_hunt.voyage.env import Voyager, auto_loop
 from zmxy4_treasure_hunt.voyage.game_window import GameWindowError
 
 
@@ -142,9 +142,9 @@ def main():
     print("请输入需要胜利的次数（默认为3），按Enter后开始自动航海")
     need_success_count = get_count_from_user()
 
-    env = Env()
+    voyager = Voyager()
     try:
-        env.init_window()
+        voyager.init_window()
     except GameWindowError as e:
         click_capture = ClickCapture()
         region = click_capture.start_capture()
@@ -152,9 +152,9 @@ def main():
             print("未选择游戏窗口")
             input("按 Enter 退出...")
             exit(0)
-        env.init_window(outer_window_box=region)
+        voyager.init_window(outer_window_box=region)
 
-    auto_loop(env, need_success_count)
+    auto_loop(voyager, need_success_count)
     input("自动航海完毕，按 Enter 退出...")
 
 

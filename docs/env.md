@@ -28,7 +28,7 @@
 - `-4`：加载或自动过关超时。
 
 `reset()`、`auto_step()` 和 `auto_run()` 返回状态码。`auto_run()` 从重置开始运行一局；
-`auto_loop(env, target=3)` 重复运行、根据状态码恢复游戏，直到达到目标胜利次数。
+`auto_loop(voyager, target=3)` 重复运行、根据状态码恢复游戏，直到达到目标胜利次数。
 
 ## 超时计时
 
@@ -39,9 +39,9 @@
 | 同一关战斗 | 60 秒，`combat_timeout` | `-3` |
 
 ```python
-from zmxy4_treasure_hunt.voyage.env import Env
+from zmxy4_treasure_hunt.voyage.env import Voyager
 
-env = Env(timeout=5, stay_timeout=60, combat_timeout=60)
+voyager = Voyager(timeout=5, stay_timeout=60, combat_timeout=60)
 ```
 
 战斗计时使用单调时钟，从第 1–4 关中首次发现敌人或危险弹幕开始。

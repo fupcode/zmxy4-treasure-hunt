@@ -44,7 +44,7 @@ class FrameRateCalculator:
         return self.fps
 
 
-class Env:
+class Voyager:
     def __init__(self, timeout=5, stay_timeout=60, render_enabled=False, combat_timeout=60):
         if not np.isfinite(combat_timeout) or combat_timeout <= 0:
             raise ValueError("combat_timeout must be positive and finite")
@@ -429,19 +429,19 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env: Env, target=3):
-    # 传入已经初始化好窗口的 Env 实例。
+def auto_loop(voyager: Voyager, target=3):
+    # 传入已经初始化好窗口的 Voyager 实例。
     success_count = 0
     if target <= 0:
         return
     print("Start Loop")
     while success_count < target:
         print(f"Success {success_count}/{target}")
-        status_code = env.auto_run()
+        status_code = voyager.auto_run()
         if status_code == 1:
             success_count += 1
         time.sleep(1)
-        env.game_window.recover(status_code)
+        voyager.game_window.recover(status_code)
 
 
 if __name__ == "__main__":
@@ -459,20 +459,20 @@ if __name__ == "__main__":
     parser.add_argument("--level", type=int, choices=range(5), default=0, help="调试开始时所在关卡，默认 0")
     args = parser.parse_args()
 
-    env_ = Env(render_enabled=True)
-    env_.init_window(focus_game=not args.debug)
+    voyager = Voyager(render_enabled=True)
+    voyager.init_window(focus_game=not args.debug)
     if args.debug:
-        map_index = args.map_index if args.map_index is not None else env_.game_window.get_map_index_at_start()
-        env_.map.reset(map_index)
+        map_index = args.map_index if args.map_index is not None else voyager.game_window.get_map_index_at_start()
+        voyager.map.reset(map_index)
         for _ in range(args.level):
-            env_.map.next_level()
+            voyager.map.next_level()
         print("只读调试：请手动操作游戏，Ctrl+C 退出。")
         try:
-            while env_.debug_step() in (0, -3):
+            while voyager.debug_step() in (0, -3):
                 pass
         except KeyboardInterrupt:
             pass
         finally:
             cv2.destroyWindow("Monitor")
     else:
-        auto_loop(env_, args.target)
+        auto_loop(voyager, args.target)

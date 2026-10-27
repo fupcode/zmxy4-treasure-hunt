@@ -8,10 +8,10 @@ from zmxy4_treasure_hunt.voyage.core.direction import Direction
 from zmxy4_treasure_hunt.voyage.core.entities import Enemy
 from zmxy4_treasure_hunt.voyage.core.map import Map
 from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
-from zmxy4_treasure_hunt.voyage.env import Env
+from zmxy4_treasure_hunt.voyage.env import Voyager
 
 
-class EnvExecutionTests(unittest.TestCase):
+class VoyagerExecutionTests(unittest.TestCase):
     def make_action_manager(self):
         self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_down"))
         self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_up"))
@@ -21,87 +21,87 @@ class EnvExecutionTests(unittest.TestCase):
         return manager
 
     def test_auto_run_returns_initial_failure_without_taking_actions(self):
-        env = Env.__new__(Env)
-        env.reset = Mock(return_value=-4)
-        env.auto_step = Mock()
-        self.assertEqual(env.auto_run(), -4)
-        env.auto_step.assert_not_called()
+        voyager = Voyager.__new__(Voyager)
+        voyager.reset = Mock(return_value=-4)
+        voyager.auto_step = Mock()
+        self.assertEqual(voyager.auto_run(), -4)
+        voyager.auto_step.assert_not_called()
 
     def test_auto_run_returns_terminal_status_after_automatic_steps(self):
         for status in (1, -2, -3, -4):
             with self.subTest(status=status):
-                env = Env.__new__(Env)
-                env.reset = Mock(return_value=0)
-                env.auto_step = Mock(side_effect=[0, status])
-                self.assertEqual(env.auto_run(), status)
-                self.assertEqual(env.auto_step.call_count, 2)
+                voyager = Voyager.__new__(Voyager)
+                voyager.reset = Mock(return_value=0)
+                voyager.auto_step = Mock(side_effect=[0, status])
+                self.assertEqual(voyager.auto_run(), status)
+                self.assertEqual(voyager.auto_step.call_count, 2)
 
     def test_terminal_update_skips_scene_processing(self):
         for status in (1, -2):
             with self.subTest(status=status):
-                env = Env.__new__(Env)
-                env._reset_combat_timer()
-                env.game_window = Mock()
-                env.game_window.update.return_value = status
-                env.map = Mock(level=4)
-                env.map.get_maze.side_effect = AssertionError("终局不应更新地图")
-                self.assertEqual(env.update(), status)
-                env.map.get_maze.assert_not_called()
+                voyager = Voyager.__new__(Voyager)
+                voyager._reset_combat_timer()
+                voyager.game_window = Mock()
+                voyager.game_window.update.return_value = status
+                voyager.map = Mock(level=4)
+                voyager.map.get_maze.side_effect = AssertionError("终局不应更新地图")
+                self.assertEqual(voyager.update(), status)
+                voyager.map.get_maze.assert_not_called()
 
     def test_perception_update_never_builds_danger_map(self):
         for enemies, bullets in ((0, 0), (1, 0), (0, 1)):
             with self.subTest(enemies=enemies, bullets=bullets):
-                env = Env.__new__(Env)
-                env.combat_timeout = 120
-                env._reset_combat_timer()
-                env.player = None
-                env.render_enabled = False
-                env.fps_calculator = Mock()
-                env.game_window = Mock()
-                env.game_window.update.return_value = 0
-                env.game_window.items = {"pao": False}
-                env.map = Mock(level=1)
-                env.action_manager = Mock()
-                env.enemy_list = MagicMock()
-                env.enemy_list.__len__.return_value = enemies
-                env.bullets = MagicMock()
-                env.bullets.__len__.return_value = bullets
-                env.bullets.new_bullets = []
-                env.falling_items = Mock()
+                voyager = Voyager.__new__(Voyager)
+                voyager.combat_timeout = 120
+                voyager._reset_combat_timer()
+                voyager.player = None
+                voyager.render_enabled = False
+                voyager.fps_calculator = Mock()
+                voyager.game_window = Mock()
+                voyager.game_window.update.return_value = 0
+                voyager.game_window.items = {"pao": False}
+                voyager.map = Mock(level=1)
+                voyager.action_manager = Mock()
+                voyager.enemy_list = MagicMock()
+                voyager.enemy_list.__len__.return_value = enemies
+                voyager.bullets = MagicMock()
+                voyager.bullets.__len__.return_value = bullets
+                voyager.bullets.new_bullets = []
+                voyager.falling_items = Mock()
                 with patch("zmxy4_treasure_hunt.voyage.env.Player"):
-                    self.assertEqual(env.update(), 0)
-                env.fps_calculator.trigger.assert_called_once_with(log_to_terminal=True)
-                env.map.update.assert_not_called()
-                self.assertIsNone(env.map.debug_image)
-                self.assertIsNone(env.map.flee_mazes)
+                    self.assertEqual(voyager.update(), 0)
+                voyager.fps_calculator.trigger.assert_called_once_with(log_to_terminal=True)
+                voyager.map.update.assert_not_called()
+                self.assertIsNone(voyager.map.debug_image)
+                self.assertIsNone(voyager.map.flee_mazes)
 
     def test_auto_path_builds_navigation_before_planning(self):
-        env = Env.__new__(Env)
-        env.player = Mock()
-        env.bullets = Mock()
-        env.enemy_list = Mock()
-        env.map = Mock()
-        env.map.get_shot_place_direction.return_value = (None, [], 0)
-        env.new_level = False
-        env.can_next_level = Mock(return_value=False)
-        env.action_manager = self.make_action_manager()
-        env.action_manager.last_direction = Direction.Right
-        env.render = Mock()
-        env.update = Mock(return_value=0)
-        self.assertEqual(env.move_to_enemy_and_update(), 0)
-        self.assertEqual(env.map.method_calls[0][0], "update")
-        self.assertEqual(env.map.method_calls[1][0], "get_shot_place_direction")
-        env.map.get_shot_place_direction.assert_called_once_with(
-            env.player, last_direction=Direction.Right)
-        self.assertIsNone(env.action_manager.last_direction)  # 本次执行了停留。
+        voyager = Voyager.__new__(Voyager)
+        voyager.player = Mock()
+        voyager.bullets = Mock()
+        voyager.enemy_list = Mock()
+        voyager.map = Mock()
+        voyager.map.get_shot_place_direction.return_value = (None, [], 0)
+        voyager.new_level = False
+        voyager.can_next_level = Mock(return_value=False)
+        voyager.action_manager = self.make_action_manager()
+        voyager.action_manager.last_direction = Direction.Right
+        voyager.render = Mock()
+        voyager.update = Mock(return_value=0)
+        self.assertEqual(voyager.move_to_enemy_and_update(), 0)
+        self.assertEqual(voyager.map.method_calls[0][0], "update")
+        self.assertEqual(voyager.map.method_calls[1][0], "get_shot_place_direction")
+        voyager.map.get_shot_place_direction.assert_called_once_with(
+            voyager.player, last_direction=Direction.Right)
+        self.assertIsNone(voyager.action_manager.last_direction)  # 本次执行了停留。
 
     def test_executed_actions_update_direction_and_stop_clears_it(self):
-        env = Env.__new__(Env)
-        env.action_manager = self.make_action_manager()
-        env.action_manager.take_action_direction(Direction.DownLeft)
-        self.assertEqual(env.action_manager.last_direction, Direction.DownLeft)
-        env.action_manager.take_action_direction(None)
-        self.assertIsNone(env.action_manager.last_direction)
+        voyager = Voyager.__new__(Voyager)
+        voyager.action_manager = self.make_action_manager()
+        voyager.action_manager.take_action_direction(Direction.DownLeft)
+        self.assertEqual(voyager.action_manager.last_direction, Direction.DownLeft)
+        voyager.action_manager.take_action_direction(None)
+        self.assertIsNone(voyager.action_manager.last_direction)
 
     def test_stop_moving_releases_keys_without_firing(self):
         manager = self.make_action_manager()
@@ -113,19 +113,19 @@ class EnvExecutionTests(unittest.TestCase):
         manager.fire.assert_not_called()
 
     def test_debug_preview_preserves_last_executed_direction(self):
-        env = Env.__new__(Env)
-        env.player = Mock()
-        env.action_manager = Mock(last_direction=Direction.Right)
-        env.update = Mock(return_value=0)
-        env.update_navigation = Mock()
-        env.map = Mock()
-        env.map.get_shot_place_direction.return_value = (Direction.Left, [(1, 1)], 1)
-        env.render = Mock()
-        self.assertEqual(env.debug_step(), 0)
-        self.assertEqual(env.action_manager.last_direction, Direction.Right)
-        env.map.get_shot_place_direction.assert_called_once_with(
-            env.player, last_direction=Direction.Right)
-        env.action_manager.take_action_direction.assert_not_called()
+        voyager = Voyager.__new__(Voyager)
+        voyager.player = Mock()
+        voyager.action_manager = Mock(last_direction=Direction.Right)
+        voyager.update = Mock(return_value=0)
+        voyager.update_navigation = Mock()
+        voyager.map = Mock()
+        voyager.map.get_shot_place_direction.return_value = (Direction.Left, [(1, 1)], 1)
+        voyager.render = Mock()
+        self.assertEqual(voyager.debug_step(), 0)
+        self.assertEqual(voyager.action_manager.last_direction, Direction.Right)
+        voyager.map.get_shot_place_direction.assert_called_once_with(
+            voyager.player, last_direction=Direction.Right)
+        voyager.action_manager.take_action_direction.assert_not_called()
 
     def test_enemy_navigation_is_lazy_and_cached(self):
         game_map = Map(render_enabled=False)

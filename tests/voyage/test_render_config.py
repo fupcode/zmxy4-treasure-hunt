@@ -8,7 +8,7 @@ import numpy as np
 
 from zmxy4_treasure_hunt.voyage.core.entities import Bullet
 from zmxy4_treasure_hunt.voyage.core.map import Map
-from zmxy4_treasure_hunt.voyage.env import Env
+from zmxy4_treasure_hunt.voyage.env import Voyager
 
 
 class RenderConfigTests(unittest.TestCase):
@@ -20,11 +20,11 @@ class RenderConfigTests(unittest.TestCase):
              patch("zmxy4_treasure_hunt.voyage.env.cv2.setWindowProperty") as set_property, \
              patch("zmxy4_treasure_hunt.voyage.env.cv2.waitKey") as wait_key:
             window_class.return_value.window_box = (0, 0, 800, 600)
-            env = Env(render_enabled=False)
-            self.assertFalse(env.map.render_enabled)
-            env.init_window()
+            voyager = Voyager(render_enabled=False)
+            self.assertFalse(voyager.map.render_enabled)
+            voyager.init_window()
             with patch("zmxy4_treasure_hunt.voyage.env.np.zeros", side_effect=AssertionError("不应创建渲染画布")):
-                env.render([(1, 1), (2, 2)])
+                voyager.render([(1, 1), (2, 2)])
             window_class.return_value.init_window.assert_called_once_with(None, focus_game=True)
             fps_class.assert_called_once_with()
             fps_class.return_value.trigger.assert_not_called()

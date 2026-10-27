@@ -1,8 +1,7 @@
 # 造梦航海
 
-游戏环境的观测和动作说明见 [环境文档](docs/env.md)，专家数据格式见
-[专家数据文档](docs/expert-data.md)。
-当前使用 [v2 的 86 维状态编码](docs/state-encoding.md)，旧 60 维数据和模型不能直接用于新版训练/推理。
+基于 YOLO 目标识别和规则寻路实现自动航海。运行方式、状态码和调试说明见
+[环境文档](docs/env.md)，目标识别模型训练见 [YOLO 文档](yolo/README.md)。
 
 寻路的 A* 核心通过 PyO3 使用 Rust 加速。安装项目（如 `uv sync`）时会自动编译，
 需要 Rust 工具链；Windows 还需要 Visual Studio C++ Build Tools。
@@ -33,17 +32,3 @@ Rust 搜索持有 GIL，直接借用 NumPy 数组，不复制输入；Python 仅
 `0`、`0.25 * turn_cost`、`0.5 * turn_cost`、`0.75 * turn_cost`、`turn_cost`，
 只计入第一步，不随搜索步长放大。默认脱险 `turn_cost=4`，射击位置和出口导航为 `2`。
 停留、重置或切关后清空方向记录；调试预览不改变记录。
-
-使用专家数据预训练 PPO 的策略网络（当前仅行为克隆，不使用奖励函数）：
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.train.train_bc
-```
-
-训练参数、checkpoint 与游戏推理命令见 [模仿学习说明](docs/imitation-learning.md)。
-
-在线 PPO 训练、断点续训和仅在奖励变化时打印日志见 [PPO 训练说明](docs/ppo-training.md)：
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u -m zaomeng_hanghai.train.train_ppo --init runs/bc/你的运行目录/best.pt --steps 100000
-```

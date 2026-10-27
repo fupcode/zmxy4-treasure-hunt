@@ -3,6 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+from zaomeng_hanghai.core.action_manager import ActionManager
 from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.entities import Enemy
 from zaomeng_hanghai.core.map import Map
@@ -11,6 +12,30 @@ from zaomeng_hanghai.env import Env
 
 
 class NextLevelTests(unittest.TestCase):
+    def make_action_manager(self):
+        self.enterContext(patch("zaomeng_hanghai.core.action_manager.key_down"))
+        self.enterContext(patch("zaomeng_hanghai.core.action_manager.key_up"))
+        self.enterContext(patch("zaomeng_hanghai.core.action_manager.time.sleep"))
+        manager = ActionManager()
+        manager.fire = Mock()
+        return manager
+
+    def test_auto_run_returns_initial_failure_without_taking_actions(self):
+        env = Env.__new__(Env)
+        env.reset = Mock(return_value=-4)
+        env.auto_step = Mock()
+        self.assertEqual(env.auto_run(), -4)
+        env.auto_step.assert_not_called()
+
+    def test_auto_run_returns_terminal_status_after_automatic_steps(self):
+        for status in (1, -2, -3, -4):
+            with self.subTest(status=status):
+                env = Env.__new__(Env)
+                env.reset = Mock(return_value=0)
+                env.auto_step = Mock(side_effect=[0, status])
+                self.assertEqual(env.auto_run(), status)
+                self.assertEqual(env.auto_step.call_count, 2)
+
     def test_terminal_update_skips_scene_processing(self):
         for status in (1, -2):
             with self.subTest(status=status):
@@ -23,7 +48,7 @@ class NextLevelTests(unittest.TestCase):
                 self.assertEqual(env.update(), status)
                 env.map.get_maze.assert_not_called()
 
-    def test_observation_update_never_builds_danger_map(self):
+    def test_perception_update_never_builds_danger_map(self):
         for enemies, bullets in ((0, 0), (1, 0), (0, 1)):
             with self.subTest(enemies=enemies, bullets=bullets):
                 env = Env.__new__(Env)
@@ -57,10 +82,10 @@ class NextLevelTests(unittest.TestCase):
         env.enemy_list = Mock()
         env.map = Mock()
         env.map.get_shot_place_direction.return_value = (None, [], 0)
-        env.last_direction = Direction.Right
         env.new_level = False
         env.can_next_level = Mock(return_value=False)
-        env.action_manager = Mock()
+        env.action_manager = self.make_action_manager()
+        env.action_manager.last_direction = Direction.Right
         env.render = Mock()
         env.update = Mock(return_value=0)
         self.assertEqual(env.move_to_enemy_and_update(), 0)
@@ -68,30 +93,36 @@ class NextLevelTests(unittest.TestCase):
         self.assertEqual(env.map.method_calls[1][0], "get_shot_place_direction")
         env.map.get_shot_place_direction.assert_called_once_with(
             env.player, last_direction=Direction.Right)
-        self.assertIsNone(env.last_direction)  # 本次执行了停留。
+        self.assertIsNone(env.action_manager.last_direction)  # 本次执行了停留。
 
     def test_executed_actions_update_direction_and_stop_clears_it(self):
         env = Env.__new__(Env)
-        env.last_direction = None
-        env.action_manager = Mock()
-        env._take_expert_action(Direction.DownLeft, 'combat')
-        self.assertEqual(env.last_direction, Direction.DownLeft)
-        env.action_manager.take_action_direction.assert_called_once_with(Direction.DownLeft)
-        env._take_expert_action(None, 'combat')
-        self.assertIsNone(env.last_direction)
+        env.action_manager = self.make_action_manager()
+        env.action_manager.take_action_direction(Direction.DownLeft)
+        self.assertEqual(env.action_manager.last_direction, Direction.DownLeft)
+        env.action_manager.take_action_direction(None)
+        self.assertIsNone(env.action_manager.last_direction)
+
+    def test_stop_moving_releases_keys_without_firing(self):
+        manager = self.make_action_manager()
+        manager.last_direction = Direction.DownLeft
+        with patch("zaomeng_hanghai.core.action_manager.key_up") as key_up:
+            manager.stop_moving()
+        key_up.assert_called_once_with(Direction.DownLeft.value)
+        self.assertIsNone(manager.last_direction)
+        manager.fire.assert_not_called()
 
     def test_debug_preview_preserves_last_executed_direction(self):
         env = Env.__new__(Env)
-        env.last_direction = Direction.Right
         env.player = Mock()
-        env.action_manager = Mock()
+        env.action_manager = Mock(last_direction=Direction.Right)
         env.update = Mock(return_value=0)
         env.update_navigation = Mock()
         env.map = Mock()
         env.map.get_shot_place_direction.return_value = (Direction.Left, [(1, 1)], 1)
         env.render = Mock()
         self.assertEqual(env.debug_step(), 0)
-        self.assertEqual(env.last_direction, Direction.Right)
+        self.assertEqual(env.action_manager.last_direction, Direction.Right)
         env.map.get_shot_place_direction.assert_called_once_with(
             env.player, last_direction=Direction.Right)
         env.action_manager.take_action_direction.assert_not_called()

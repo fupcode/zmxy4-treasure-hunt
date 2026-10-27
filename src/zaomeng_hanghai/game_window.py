@@ -7,7 +7,7 @@ import win32api
 import win32con
 
 from zaomeng_hanghai.core.onnx_model import OnnxModel, DetectionResult
-from zaomeng_hanghai.core.action_manager import key_up, key_up_all
+from zaomeng_hanghai.core.action_manager import key_up_all
 
 
 def set_cursor_pos(x, y):
@@ -130,7 +130,6 @@ class GameWindow:
 
     def recover(self, status, end=False):
         time.sleep(3)
-        key_up("J")
         key_up_all()
 
         image = self.capture_screen(box=self.window_box)
@@ -139,7 +138,7 @@ class GameWindow:
             self.click_normal(0.4, 0.712)
             time.sleep(3)
         elif status == -4 and self.refresh_on_engine_timeout:
-            print("Engine Time Out. Refreshing game for PPO training.")
+            print("Engine Time Out. Refreshing game.")
             self.refresh_game()
             self.start_hanghai(end=end)
         elif status in (-3, -4):

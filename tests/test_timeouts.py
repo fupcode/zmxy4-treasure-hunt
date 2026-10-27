@@ -136,9 +136,8 @@ class TimeoutTests(unittest.TestCase):
         env._update_combat_timer()
         self.now = 100
         env.update = Mock(return_value=-4)
-        _, status = env.reset()
+        status = env.reset()
         self.assertEqual(status, -4)
-        self.assertTrue(env._episode_done)
         self.assertEqual(env.combat_elapsed_seconds, 0)
 
 

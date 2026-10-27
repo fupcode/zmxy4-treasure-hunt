@@ -1,4 +1,4 @@
-"""专家战斗寻路的窄目标、墙角和敌人重叠回归测试。"""
+"""自动战斗寻路的窄目标、墙角和敌人重叠回归测试。"""
 
 import unittest
 from unittest.mock import patch
@@ -19,7 +19,7 @@ from zaomeng_hanghai.core.maze_utils import (
 )
 
 
-class ExpertNavigationTests(unittest.TestCase):
+class NavigationTests(unittest.TestCase):
 
     def test_shooting_path_uses_last_executed_direction(self):
         game_map = Map.__new__(Map)

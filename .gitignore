@@ -93,7 +93,6 @@ version.json
 *.pt
 
 images/
-/data/expert/
 /runs/
 /yolo/*
 !/yolo/README.md

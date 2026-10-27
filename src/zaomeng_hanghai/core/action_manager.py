@@ -5,7 +5,7 @@ import time
 import win32api
 import win32con
 
-from .direction import (direction_list, is_reverse_direction, is_single_direction,
+from .direction import (is_reverse_direction, is_single_direction,
                         is_horizontal_direction, get_horizontal_and_vertical_direction)
 
 
@@ -36,7 +36,7 @@ def stop_to(direction):
 
 
 def key_up_all():
-    for char in "WASD":
+    for char in "WASDJ":
         key_up(char)
 
 
@@ -61,10 +61,15 @@ class ActionManager:
         self.action_start_time = time.time()
 
     def reset(self):
+        self.stop_moving()
         self.fire_interval = 0.6
         self.pao = False
-        self.last_direction = None
         self.fire_reward = 0
+
+    def stop_moving(self):
+        """释放移动按键，同时清空方向记录，不执行开火。"""
+        stop_to(self.last_direction)
+        self.last_direction = None
 
     def _can_fire(self):
         return time.time() - self.last_fire_time > self.fire_interval
@@ -176,10 +181,3 @@ class ActionManager:
         remaining_time = self.action_start_time + self.action_interval - time.time()
         if remaining_time > 0:
             time.sleep(remaining_time)
-
-    def take_action(self, action):
-        if action == 0:
-            self.take_action_direction(None)
-            return
-        direction = direction_list[action - 1]
-        self.take_action_direction(direction)

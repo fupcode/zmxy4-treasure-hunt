@@ -6,7 +6,6 @@ import time
 import numpy as np
 
 from . import maze_utils
-from .observation import BULLET_FIELDS, ENEMY_FIELDS, ENEMY_FIRE_COOLDOWN_SCALE, MAX_BULLETS, MAX_ENEMIES
 from .constants import (
     HIT_HEIGHT,
     HIT_WIDTH,
@@ -135,7 +134,6 @@ class Player:
 
 
 class Enemy:
-    state_dim = len(ENEMY_FIELDS)
 
     def __init__(self, enemy_box, maze):
         xywhn = enemy_box.xywhn
@@ -281,21 +279,8 @@ class Enemy:
     def is_safe(self):
         return self.fire_cool_down > 0
 
-    def state_encode(self, player, game_map=None):
-        """位置和实际整数碰撞框相对玩家的归一化偏移。"""
-        in_range, can_hit = (False, False) if game_map is None else game_map.enemy_fire_flags(player, self)
-        return np.array([
-            1, self.xn - player.xn, self.yn - player.yn,
-            self.x1 / MAZE_WIDTH - player.xn, self.y1 / MAZE_HEIGHT - player.yn,
-            self.x2 / MAZE_WIDTH - player.xn, self.y2 / MAZE_HEIGHT - player.yn,
-            np.clip(self.fire_cool_down / ENEMY_FIRE_COOLDOWN_SCALE, 0, 1),
-            in_range, can_hit,
-        ], dtype=np.float32)
-
 
 class EnemyList(UserList[Enemy]):
-    max_enemies = MAX_ENEMIES
-    state_dim = max_enemies * Enemy.state_dim
 
     def __init__(self, max_disappear_count=1, threshold_distance=20):
         super().__init__()
@@ -363,20 +348,8 @@ class EnemyList(UserList[Enemy]):
         # 根据与玩家的曼哈顿距离排序
         self.data.sort(key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y))
 
-    def state_encode(self, player, game_map=None):
-        """最近五个敌人，每个 10 维位置/碰撞框/冷却/射击标志；不足补零。"""
-        state = np.zeros((self.max_enemies, Enemy.state_dim), dtype=np.float32)
-        enemies = sorted(
-            self.data,
-            key=lambda enemy: abs(enemy.x - player.x) + abs(enemy.y - player.y),
-        )
-        for i, enemy in enumerate(enemies[:self.max_enemies]):
-            state[i] = enemy.state_encode(player, game_map)
-        return state.ravel()
-
 
 class Bullet:
-    state_dim = len(BULLET_FIELDS)
 
     def __init__(self, bullet_info):
         self.xn, self.yn, self.d = bullet_info
@@ -384,19 +357,8 @@ class Bullet:
 
         self.disappear_count = 0
 
-    def state_encode(self, player):
-        """[存在标志, 右, 下, 左, 上, 相对玩家 dx, dy]。"""
-        state = np.zeros(self.state_dim, dtype=np.float32)
-        state[0] = 1
-        state[1 + self.d] = 1
-        state[5] = self.xn - player.xn
-        state[6] = self.yn - player.yn
-        return state
-
 
 class Bullets(UserList[Bullet]):
-    max_bullets = MAX_BULLETS
-    state_dim = max_bullets * Bullet.state_dim
 
     def __init__(self, disappear_threshold=2):
         super().__init__()
@@ -511,13 +473,6 @@ class Bullets(UserList[Bullet]):
         elif bullet.d == 3 and bullet.y < player.y - HIT_HEIGHT // 2:
             return True
         return False
-
-    def state_encode(self, player):
-        """按 update 排好的距离顺序编码前三颗危险弹幕，不足补零。"""
-        state = np.zeros((self.max_bullets, Bullet.state_dim), dtype=np.float32)
-        for i, bullet in enumerate(self.data[:self.max_bullets]):
-            state[i] = bullet.state_encode(player)
-        return state.ravel()
 
 
 class FallingItem:

@@ -1,4 +1,4 @@
-"""游戏环境流程编排：感知更新、动作调度、奖励和调试渲染。"""
+"""游戏环境流程编排：感知更新、自动战斗、动作调度和调试渲染。"""
 
 import time
 
@@ -10,12 +10,7 @@ from zaomeng_hanghai.core.action_manager import ActionManager, click, key_down
 from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
 from zaomeng_hanghai.core.direction import Direction
 from zaomeng_hanghai.core.entities import Bullets, EnemyList, FallingItems, Player
-from zaomeng_hanghai.core.expert_recorder import ExpertRecorder
 from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.core.observation import (
-    BULLET_SLICE, COLLISION_SLICE, ENEMY_SLICE, OBSERVATION_DIM, OBSERVATION_SCHEMA_VERSION,
-)
-from zaomeng_hanghai.core.rewards import RewardConfig, calculate_reward
 
 
 class FrameRateCalculator:
@@ -50,11 +45,7 @@ class FrameRateCalculator:
 
 
 class Env:
-    # 角色/关卡 17 + 五个敌人 50 + 三颗子弹 21 + 碰撞方向 8。
-    state_space = OBSERVATION_DIM
-    state_schema_version = OBSERVATION_SCHEMA_VERSION
-
-    def __init__(self, timeout=5, stay_timeout=60, render_enabled=False, reward_config=None, combat_timeout=60):
+    def __init__(self, timeout=5, stay_timeout=60, render_enabled=False, combat_timeout=60):
         if not np.isfinite(combat_timeout) or combat_timeout <= 0:
             raise ValueError("combat_timeout must be positive and finite")
         self.render_enabled = render_enabled
@@ -62,7 +53,6 @@ class Env:
         self.game_window = GameWindow()
         self.window_size = None
         self.action_manager = ActionManager()
-        self.action_space = 9
 
         self.player: Player | None = None
         self.enemy_list = EnemyList()
@@ -71,21 +61,14 @@ class Env:
         self.new_level = False
         self.level_started_at = None
 
-        self.last_direction = None
 
         self.fps_calculator = FrameRateCalculator()
         self.map = Map(render_enabled=render_enabled)
         self.stay_timeout = stay_timeout
-        self.reward_config = reward_config if reward_config is not None else RewardConfig()
-        self.last_reward = 0.0
-        self.reward_terms = {}
-        self.last_step_info = {}
-        self._episode_done = False
         self.combat_timeout = combat_timeout
         self._reset_combat_timer()
 
     def _reset_combat_timer(self):
-        self._last_completed_combat = None
         self._combat_level = None
         self._combat_elapsed = 0.0
         self._combat_started_at = None
@@ -104,9 +87,7 @@ class Env:
     def _update_combat_timer(self):
         """同关累计战斗时间；空场暂停，切关重置，加载时间不计入。"""
         if self._combat_level != self.map.level:
-            completed = (self._combat_level, self.combat_elapsed_seconds)
             self._reset_combat_timer()
-            self._last_completed_combat = completed
             self._combat_level = self.map.level
         if not 1 <= self.map.level <= 4 or self.can_next_level():
             self._pause_combat_timer()
@@ -133,10 +114,6 @@ class Env:
             click(x2 - 10, y2 - 10)
 
     def reset(self):
-        self.last_reward = 0.0
-        self.reward_terms = {}
-        self.last_step_info = {}
-        self._episode_done = False
         self._reset_combat_timer()
         self.player = None
         self.action_manager.reset()
@@ -147,12 +124,10 @@ class Env:
 
         self.new_level = False
         self.level_started_at = None
-        self.last_direction = None
 
         status_code = self.update()
         if status_code:
-            self._episode_done = True
-            return np.zeros(self.state_space, dtype=np.float32), status_code
+            return status_code
         self.render()
 
         map_index = self.game_window.get_map_index_at_start()
@@ -160,14 +135,12 @@ class Env:
         self._reset_combat_timer()
 
         status_code = self.try_next_level()
-        self._episode_done = status_code != 0
-        state = self.state_encode()
         print("游戏开始！大地图：", map_index)
 
-        return state, status_code
+        return status_code
 
     def update(self) -> int:
-        """更新感知、实体跟踪及战斗状态，供智能体和自动寻路共用。"""
+        """更新感知、实体跟踪及战斗状态，供自动战斗和调试共用。"""
         status_code = self.game_window.update()
         start_time = time.monotonic()
         if status_code == -1:
@@ -202,7 +175,7 @@ class Env:
             self.enemy_list.clear()
             self.bullets.clear()
             self.falling_items.clear()
-            self.last_direction = None
+            self.action_manager.stop_moving()
 
         self.player = player
 
@@ -272,189 +245,28 @@ class Env:
 
         return status_code
 
-    def _take_expert_action(self, direction, phase):
-        recorder = getattr(self, "_expert_recorder", None)
-        if recorder is not None:
-            recorder.action(self, direction, phase)
-        self.action_manager.take_action_direction(direction)
-        self.last_direction = direction
-
-    def auto_run(self, *, expert_output=None, recorder=None, collect_expert=False):
-        """运行一局规则专家；仅显式开启采集、指定目录或传入 recorder 时保存数据。"""
-        if getattr(self, "_expert_recorder", None) is not None:
-            raise RuntimeError("Expert collection is already active")
-        if recorder is not None and expert_output is not None:
-            raise ValueError("Specify recorder or expert_output, not both")
-        owned = recorder is None and (collect_expert or expert_output is not None)
-        if owned:
-            recorder = ExpertRecorder(expert_output, combat_timeout=self.combat_timeout)
-        self.expert_data_path = recorder.path if recorder is not None else None
-        if recorder is not None:
-            recorder.begin()
-        self._expert_recorder = recorder
-        try:
-            _, status_code = self.reset()
-            while status_code == 0:
-                status_code = self.auto_step()
-        except BaseException as error:
-            if recorder is not None:
-                recorder.finish(-4, self.map.level, error=f"{type(error).__name__}: {error}")
-            if owned:
-                recorder.progress("interrupted" if isinstance(error, KeyboardInterrupt) else "failed", str(error))
-            raise
-        else:
-            if recorder is not None:
-                recorder.finish(status_code, self.map.level)
-            if owned:
-                recorder.progress("completed")
-            return status_code
-        finally:
-            self._expert_recorder = None
+    def auto_run(self):
+        """从重置开始运行一局自动战斗，返回结束状态码。"""
+        status_code = self.reset()
+        while status_code == 0:
+            status_code = self.auto_step()
+        return status_code
 
     def debug_step(self):
-        """只更新感知、专家建议路径和 Monitor；不执行移动、开火或过关。"""
+        """只更新感知、自动战斗建议路径和 Monitor；不执行移动、开火或过关。"""
         status_code = self.update()
         if status_code not in (0, -3):
             return status_code
         self.update_navigation()
         _, path, _ = self.map.get_shot_place_direction(
-            self.player, last_direction=self.last_direction
+            self.player, last_direction=self.action_manager.last_direction
         )
         self.render(path)
         return status_code
 
-    def step(self, action):
-        """执行动作并计算奖励；为兼容推理调用，仍返回 status_code。
-
-        奖励保存在 last_reward/reward_terms；训练可调用 step_with_reward。
-        自动过关接管前截取开火、静止和撞墙分项，防止导航动作覆盖它们。
-        """
-        if not isinstance(action, (int, np.integer)) or not 0 <= action < self.action_space:
-            raise ValueError(f"Invalid action: {action}")
-        if self._episode_done:
-            raise RuntimeError("Episode finished; call reset() before step()")
-        started = time.monotonic()
-        self.last_reward = 0.0
-        self.reward_terms = {}
-        self.last_step_info = {}
-        level_before = self.map.level
-        level_elapsed = self.combat_elapsed_seconds
-        combat_elapsed_before = level_elapsed
-        hp_before = self.game_window.hit_point
-        position_before = self._reward_position()
-        wall_collision = bool(self.player is not None and self.map.is_move_collision(self.player, action))
-        # 开火先于移动，目标数量和距离使用开火时的场景；不受自动导航覆盖。
-        fire_target_count = 0
-        enemy_proximity_weight = 0.0
-        if self.player is not None and 1 <= level_before <= 4:
-            for enemy in self.enemy_list:
-                if enemy is None:
-                    continue
-                fire_target_count += int(self.map.enemy_fire_flags(self.player, enemy)[1])
-                distance = self.map.enemy_proximity_distance(self.player, enemy)
-                radius = self.reward_config.enemy_proximity_distance
-                if distance is not None and radius > 0:
-                    enemy_proximity_weight += max(0.0, 1.0 - distance / radius) ** 2
-        self.action_manager.take_action(action)
-        self.last_direction = self.action_manager.last_direction
-        fire_reward = float(self.action_manager.fire_reward)
-        self.render()
-        hp_lost = 0.0
-        stationary = False
-        error = None
-        agent_combat_seconds = 0.0
-        try:
-            status_code = self.update()
-            if self.map.level == level_before:
-                level_elapsed = self.combat_elapsed_seconds
-                agent_combat_seconds = max(
-                    0.0, min(level_elapsed, self.combat_timeout)
-                    - min(combat_elapsed_before, self.combat_timeout),
-                )
-            if status_code == 0:
-                hp_after_action = self.game_window.hit_point
-                hp_lost = max(0, hp_before - hp_after_action)
-                position_after = self._reward_position()
-                if position_before is not None and position_after is not None and self.map.level == level_before:
-                    displacement = np.hypot(
-                        position_after[0] - position_before[0], position_after[1] - position_before[1]
-                    )
-                    stationary = displacement <= self.reward_config.stationary_threshold
-                status_code = self.try_next_level()
-                if status_code == 0:
-                    hp_lost += max(0, hp_after_action - self.game_window.hit_point)
-                self.new_level = False
-        except TimeoutError as exc:
-            # 引擎问题截断，不归因于智能体。
-            status_code = -4
-            error = str(exc)
-
-        levels_passed = max(0, self.map.level - level_before) if level_before >= 1 else 0
-        if status_code:
-            self._pause_combat_timer()
-        completed = self._last_completed_combat
-        if self.map.level == level_before:
-            level_elapsed = self.combat_elapsed_seconds
-        elif completed is not None and completed[0] == level_before:
-            level_elapsed = completed[1]
-        # 跨关时保留上一关末尾耗时，同时计入本步内下一关已发生的战斗。
-        combat_seconds = 0.0
-        if level_before >= 1:
-            combat_seconds = max(
-                0.0, min(level_elapsed, self.combat_timeout)
-                - min(combat_elapsed_before, self.combat_timeout),
-            )
-        if self.map.level != level_before and 1 <= self.map.level <= 4:
-            combat_seconds += min(self.combat_elapsed_seconds, self.combat_timeout)
-        combat_time_fraction = combat_seconds / self.combat_timeout
-        level_time_ratio = None
-        if level_before >= 1 and (levels_passed > 0 or status_code == 1):
-            level_time_ratio = level_elapsed / self.combat_timeout
-        self.reward_terms = calculate_reward(
-            self.reward_config, fire_reward=fire_reward, stationary=stationary,
-            wall_collision=wall_collision, hp_lost=hp_lost,
-            levels_passed=levels_passed, status=status_code,
-            level_time_ratio=level_time_ratio,
-            combat_time_fraction=combat_time_fraction,
-            fire_target_count=fire_target_count,
-            enemy_proximity_weight=enemy_proximity_weight,
-            agent_combat_seconds=agent_combat_seconds,
-        )
-        self.last_reward = float(sum(self.reward_terms.values()))
-        self.last_step_info = {
-            "status_code": status_code,
-            "reward_terms": dict(self.reward_terms),
-            "elapsed_seconds": time.monotonic() - started,
-            "combat_elapsed_seconds": self.combat_elapsed_seconds,
-            "level_time_ratio": level_time_ratio,
-            "combat_time_fraction": combat_time_fraction,
-            "fire_target_count": fire_target_count,
-            "enemy_proximity_weight": enemy_proximity_weight,
-            "agent_combat_seconds": agent_combat_seconds,
-            "transition_valid": status_code != -4,
-        }
-        if error is not None:
-            self.last_step_info["error"] = error
-        self._episode_done = status_code != 0
-        return status_code
-
-    def _reward_position(self):
-        if self.player is None:
-            return None
-        # 使用检测位置而非 find_nearest_passable_point 修正位置，避免撞墙被投影掩盖。
-        return self.player.xn * MAZE_WIDTH, self.player.yn * MAZE_HEIGHT
-
-    def step_with_reward(self, action):
-        """返回 (obs, reward, terminated, truncated, info)，不额外执行动作。"""
-        status_code = self.step(action)
-        return (
-            self.state_encode(), self.last_reward,
-            status_code in (1, -2), status_code in (-3, -4), dict(self.last_step_info),
-        )
-
     def try_start_level(self):
         def loop_act(direction):
-            self._take_expert_action(direction, "start")
+            self.action_manager.take_action_direction(direction)
             self.render()
 
             time.sleep(0.035)
@@ -476,7 +288,7 @@ class Env:
             elif self.map.map_index == 3:
                 if self.map.level == 1:
                     direction = Direction.Down
-                    self._take_expert_action(direction, "start")
+                    self.action_manager.take_action_direction(direction)
                     time.sleep(1)
                     status_code = self.update()
                     if status_code:
@@ -519,9 +331,9 @@ class Env:
                 or time.monotonic() - self.level_started_at >= 5
             ):
                 direction, path = self.map.get_next_direction(
-                    self.player, self.falling_items, last_direction=self.last_direction)
+                    self.player, self.falling_items, last_direction=self.action_manager.last_direction)
                 self.render(path)
-                self._take_expert_action(direction, "navigation")
+                self.action_manager.take_action_direction(direction)
             else:
                 self.render()
             time.sleep(0.1)
@@ -542,51 +354,21 @@ class Env:
 
         self.update_navigation()
         direction, path, _ = self.map.get_shot_place_direction(
-            self.player, last_direction=self.last_direction
+            self.player, last_direction=self.action_manager.last_direction
         )
         if direction is None:
-            self._take_expert_action(None, "combat")
+            self.action_manager.take_action_direction(None)
             self.render()
             status_code = self.update()
             return status_code
 
-        self._take_expert_action(direction, "combat")
+        self.action_manager.take_action_direction(direction)
         self.render(path)
 
         status_code = self.update()
 
         return status_code
 
-    def state_encode(self):
-        """返回 v4 的 96 维 float32 观测；终局状态码单独返回。
-
-        [0:7] 角色，[7] 关卡进度，[8:17] 类型 one-hot，
-        [17:67] 五个敌人的相对位置/碰撞框/冷却/射程/可命中，[67:88] 三颗危险弹幕，
-        [88:96] 右、下、左、上、右下、左下、右上、左上的碰撞标志。
-        """
-        state = np.zeros(self.state_space, dtype=np.float32)
-        state[0] = self.player.xn
-        state[1] = self.player.yn
-        state[2] = np.clip(self.action_manager.get_fire_cool_down() / 0.6, 0, 1)
-        state[3] = np.clip(self.game_window.hit_point / 4, 0, 1)
-        state[4:7] = [
-            bool(self.game_window.items[name]) for name in ("pao", "dan", "fan")
-        ]
-
-        state[7] = self.map.level / 4
-        task = self.map.get_task()
-        if task == -1:
-            pass  # 起始区域没有关卡任务类型，保留全零。
-        elif 0 <= task < 9:
-            state[8 + task] = 1
-        else:
-            raise ValueError(f"Invalid task type: {task}")
-
-        state[ENEMY_SLICE] = self.enemy_list.state_encode(self.player, self.map)
-        state[BULLET_SLICE] = self.bullets.state_encode(self.player)
-        state[COLLISION_SLICE] = [self.map.is_move_collision(self.player, action) for action in range(1, 9)]
-
-        return state
 
     def render(self, path=None):
         if not self.render_enabled:
@@ -650,30 +432,19 @@ class Env:
         cv2.waitKey(1)
 
 
-def auto_loop(env: Env, target=3, *, expert_output=None, collect_expert=False):
-    # 传入已经初始化好窗口的Env实例
+def auto_loop(env: Env, target=3):
+    # 传入已经初始化好窗口的 Env 实例。
     success_count = 0
-
     if target <= 0:
         return
-    recorder = (ExpertRecorder(expert_output, combat_timeout=env.combat_timeout)
-                if collect_expert or expert_output is not None else None)
     print("Start Loop")
-    try:
-        while success_count < target:
-            print(f"Success {success_count}/{target}")
-            status_code = env.auto_run(recorder=recorder)
-            if status_code == 1:
-                success_count += 1
-            time.sleep(1)
-            env.game_window.recover(status_code)
-    except BaseException as error:
-        if recorder is not None:
-            recorder.progress("interrupted" if isinstance(error, KeyboardInterrupt) else "failed", str(error))
-        raise
-    else:
-        if recorder is not None:
-            recorder.progress("completed")
+    while success_count < target:
+        print(f"Success {success_count}/{target}")
+        status_code = env.auto_run()
+        if status_code == 1:
+            success_count += 1
+        time.sleep(1)
+        env.game_window.recover(status_code)
 
 
 if __name__ == "__main__":
@@ -687,8 +458,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="自动战斗或只读调试窗口")
     parser.add_argument("target", nargs="?", type=int, default=3)
     parser.add_argument("--debug", action="store_true", help="只显示感知和建议路径，不发送鼠标或键盘指令")
-    parser.add_argument("--collect-expert", action="store_true", help="开启专家数据采集；默认不采集")
-    parser.add_argument("--expert-output", type=Path, help="开启采集并指定专家数据的新运行目录")
     parser.add_argument("--map-index", type=int, choices=range(7), help="调试时指定大地图编号，默认从画面识别")
     parser.add_argument("--level", type=int, choices=range(5), default=0, help="调试开始时所在关卡，默认 0")
     args = parser.parse_args()
@@ -709,4 +478,4 @@ if __name__ == "__main__":
         finally:
             cv2.destroyWindow("Monitor")
     else:
-        auto_loop(env_, args.target, expert_output=args.expert_output, collect_expert=args.collect_expert)
+        auto_loop(env_, args.target)

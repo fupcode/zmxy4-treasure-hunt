@@ -63,24 +63,33 @@ class VoyageCliTests(unittest.TestCase):
                 self.assertEqual(error.exception.code, code)
 
     def test_voyage_target_and_read_only_options(self):
-        env = types.ModuleType("zmxy4_treasure_hunt.voyage.env")
-        env.Voyager = Mock()
-        env.auto_loop = Mock()
-        voyager = env.Voyager.return_value
-        with patch.dict(sys.modules, {env.__name__: env}), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(cli.main(["5"]), 0)
-            env.Voyager.assert_called_once_with(render_enabled=False)
-            env.auto_loop.assert_called_once_with(voyager, 5)
-            voyager.init_window.assert_called_once_with(focus_game=True)
-            voyager.reset_mock()
-            env.Voyager.reset_mock()
-            env.auto_loop.reset_mock()
-            voyager.debug_step.side_effect = [0, -3, 1]
-            with patch("cv2.destroyWindow") as close:
-                self.assertEqual(cli.main(["--debug", "--map-index", "2", "--level", "1"]), 0)
-            env.Voyager.assert_called_once_with(render_enabled=True)
-            voyager.init_window.assert_called_once_with(focus_game=False)
-            voyager.map.reset.assert_called_once_with(2)
-            voyager.map.next_level.assert_called_once_with()
-            env.auto_loop.assert_not_called()
-            close.assert_called_once_with("Monitor")
+        for debug in (False, True):
+            for read_only in (False, True):
+                with self.subTest(debug=debug, read_only=read_only):
+                    env = types.ModuleType("zmxy4_treasure_hunt.voyage.env")
+                    env.Voyager = Mock()
+                    env.auto_loop = Mock()
+                    voyager = env.Voyager.return_value
+                    voyager.debug_step.side_effect = [0, -3, 1]
+                    args = ["5"]
+                    if debug:
+                        args.append("--debug")
+                    if read_only:
+                        args.extend(["--read-only", "--map-index", "2", "--level", "1"])
+                    with patch.dict(sys.modules, {env.__name__: env}), \
+                            contextlib.redirect_stdout(io.StringIO()), patch("cv2.destroyWindow") as close:
+                        self.assertEqual(cli.main(args), 0)
+                    env.Voyager.assert_called_once_with(render_enabled=debug)
+                    voyager.init_window.assert_called_once_with(focus_game=not read_only)
+                    if read_only:
+                        voyager.map.reset.assert_called_once_with(2)
+                        voyager.map.next_level.assert_called_once_with()
+                        self.assertEqual(voyager.debug_step.call_count, 3)
+                        env.auto_loop.assert_not_called()
+                    else:
+                        env.auto_loop.assert_called_once_with(voyager, 5)
+                        voyager.debug_step.assert_not_called()
+                    if read_only and debug:
+                        close.assert_called_once_with("Monitor")
+                    else:
+                        close.assert_not_called()

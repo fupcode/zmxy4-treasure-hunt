@@ -38,16 +38,17 @@
 | 迷宫寻宝 | `--interval 0.05` | 最小循环间隔，单位秒，默认 0.05，必须为正数 |
 | 迷宫寻宝 | `--debug` | 显示监控图，识别或定位失败时保存诊断现场；仍会自动操作游戏 |
 | 航海寻宝 | `次数` | 目标胜利次数，必须为正整数，默认 3 |
-| 航海寻宝 | `--debug` | 只读调试，显示感知和建议路径，由用户手动操作游戏 |
-| 航海寻宝 | `--map-index 0` | 调试时指定地图编号，范围 0–6，默认从画面识别 |
-| 航海寻宝 | `--level 1` | 调试起始关卡，范围 0–4，默认 0 |
+| 航海寻宝 | `--debug` | 显示监控窗口，仍会自动操作游戏 |
+| 航海寻宝 | `--read-only` | 只更新感知和建议路径，由用户手动操作游戏；可搭配 `--debug` 显示窗口 |
+| 航海寻宝 | `--map-index 0` | 只读模式下指定地图编号，范围 0–6，默认从画面识别 |
+| 航海寻宝 | `--level 1` | 只读模式下的起始关卡，范围 0–4，默认 0 |
 
 ```powershell
 # 迷宫寻宝：显示监控图并启用失败诊断
 .\造梦西游4寻宝助手.exe maze --debug
 
 # 航海寻宝：只读调试指定地图和关卡
-.\造梦西游4寻宝助手.exe voyage --debug --map-index 0 --level 1
+.\造梦西游4寻宝助手.exe voyage --read-only --debug --map-index 0 --level 1
 ```
 
 迷宫诊断现场保存在当前运行目录的 `runs/maze-debug/` 下。识别、定位和诊断说明见
@@ -82,7 +83,7 @@ uv sync --no-dev
 .\.venv\Scripts\python.exe main.py maze
 .\.venv\Scripts\python.exe main.py voyage 3
 .\.venv\Scripts\python.exe main.py maze --debug --interval 0.05
-.\.venv\Scripts\python.exe main.py voyage --debug --map-index 0 --level 1
+.\.venv\Scripts\python.exe main.py voyage --read-only --debug --map-index 0 --level 1
 ```
 
 两个子命令也提供独立的模块入口：

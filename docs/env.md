@@ -12,10 +12,11 @@
 .\.venv\Scripts\python.exe main.py voyage 3
 ```
 
-只读调试显示感知和建议路径，手动操作游戏，Ctrl+C 退出：
+`--debug` 仅显示监控窗口，仍会自动航海。`--read-only` 独立控制只读模式，不发送鼠标或键盘指令。
+只读模式下可搭配 `--debug` 显示感知和建议路径，手动操作游戏，Ctrl+C 退出：
 
 ```powershell
-.\.venv\Scripts\python.exe main.py voyage --debug --map-index 0 --level 1
+.\.venv\Scripts\python.exe main.py voyage --read-only --debug --map-index 0 --level 1
 ```
 
 `python main.py voyage --help` 查看航海参数。也可以通过

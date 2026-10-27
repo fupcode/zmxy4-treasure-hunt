@@ -32,7 +32,7 @@ class Grid:
 
         return img
 
-    def analyze(self, image, char_coord, treasure_coords):
+    def analyze(self, image, char_coord, treasure_coords, valid_pixels=None):
         if self.horizontal_lines is None or self.vertical_lines is None:
             raise GridDetectionError("尚未检测到格网")
         rows = len(self.horizontal_lines) - 1
@@ -49,6 +49,13 @@ class Grid:
                                  self.vertical_lines[c]:self.vertical_lines[c + 1]]
                     if cell.size == 0:
                         raise GridDetectionError("格网包含空单元格")
+                    if valid_pixels is not None:
+                        visible = valid_pixels[self.horizontal_lines[r]:self.horizontal_lines[r + 1],
+                                               self.vertical_lines[c]:self.vertical_lines[c + 1]]
+                        if np.mean(visible) < 0.6:
+                            # 0 只表示本帧无法观测；完整地图不会因此被修改。
+                            continue
+                        cell = cell[visible]
                     avg_val = np.mean(cell)
                     view[r, c] = 2 if avg_val > 100 else 3
 

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from zmxy4_treasure_hunt.maze.viewport import locate_viewport
+from zmxy4_treasure_hunt.maze.mask import MaskRestorer
 
 
 def main():
@@ -35,8 +36,19 @@ def main():
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(args.output_dir / "marked.png"), marked)
-    cv2.imwrite(str(args.output_dir / "viewport.png"), image[top:bottom, left:right])
+    raw = image[top:bottom, left:right]
+    cv2.imwrite(str(args.output_dir / "viewport.png"), raw)
+    restorer = MaskRestorer(right - left, bottom - top)
+    restored = restorer.restore(raw)
+    cv2.imwrite(str(args.output_dir / "viewport_restored.png"), restored.image)
+    cv2.imwrite(str(args.output_dir / "recognition_mask.png"), restored.valid_pixels.astype("uint8") * 255)
+    cv2.imwrite(str(args.output_dir / "comparison.png"), cv2.hconcat((raw, restored.image)))
+    full_restored = image.copy()
+    full_restored[top:bottom, left:right] = restored.image
+    cv2.imwrite(str(args.output_dir / "screenshot_restored.png"), full_restored)
     report = asdict(match)
+    report["restored_fraction"] = float(restorer.usable.mean())
+    report["recognition_fraction"] = float(restored.valid_pixels.mean())
     report["note"] = "confidence 为联合规则评分，并非统计成功概率；corner_support 为角点支持度。"
     report_text = json.dumps(report, ensure_ascii=False, indent=2)
     (args.output_dir / "report.json").write_text(report_text + "\n", encoding="utf-8")

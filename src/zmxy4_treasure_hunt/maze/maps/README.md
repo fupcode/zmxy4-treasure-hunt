@@ -32,34 +32,26 @@
 自动程序已接入这些模板：启动时按北京时间加载当日地图，不再探索。
 局部画面只用于定位和移动纠偏，触发假宝箱后只更新本局内存状态。
 
-在项目根目录运行：
+资源随 `zmxy4_treasure_hunt.maze.maps` 包分发，不依赖当前工作目录或外置 `maps/` 目录。
+读取当天地图：
 
 ```python
-import json
-from datetime import date
-from pathlib import Path
+from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
 
-import numpy as np
-
-weekday = date.today().isoweekday() % 7  # 星期日为 0，星期一为 1
-data = json.loads(Path(f"maps/{weekday}.json").read_text(encoding="utf-8"))
-maze = np.array(
-    [[data["legend"][cell] for cell in row] for row in data["grid"]],
-    dtype=np.uint8,
-)
-treasures = [tuple(cell) for cell in data["treasures"]]
+template = load_weekday_map()  # 北京时间，星期日为 0
+maze = template.cells.copy()  # 本局可变状态；原模板只读
 ```
 
-本局假宝箱消失时应修改内存中的 `maze`，保留 JSON 模板供下次运行加载。
+也可使用 `load_weekday_map(0)` 显式读取星期日地图。
+本局假宝箱消失时修改内存中的 `maze`，保留 JSON 模板供下次运行加载。
 
-## 重新解析与复核
+## 分发与校验
 
-```powershell
-.\.venv\Scripts\python.exe -X utf8 tools/extract_maze_maps.py
-```
+七张 JSON 位于 `src/zmxy4_treasure_hunt/maze/maps/`。
+读取使用 `importlib.resources`，支持源码、安装包和 PyInstaller 冻结程序。
+项目自带 PyInstaller hook 收集七张 JSON 及 `assets/edge_mask.png`，详见
+[打包说明](../../../../docs/maze.md)。
 
-提取脚本针对这批 1210×1098 图片：按格网连接位置采样区分沙路与石墙，
-再用 `ft0.png` 的宝箱纹理识别其余宝箱。脚本检查分类余量、宝箱数量和房间连通性，
-生成 `maps/0.json` 至 `6.json`，并输出 `images/maze/parsed/ft0.png` 至 `ft6.png` 供复核。
-复核图中蓝点表示通路、紫点表示墙壁、红框表示宝箱，标签为 `[行, 列]`。
-每张图的 196 个房间均连通；图片只用于离线解析，不操作游戏。
+地图由 `images/maze/ft0.png` 至 `ft6.png` 解析：按格网连接位置区分沙路与石墙，
+再用 `ft0.png` 的宝箱纹理识别其余宝箱。每张图的 196 个房间均连通，宝箱候选数量为 8。
+`tests/maze/test_map_templates.py` 校验地图尺寸、编码、星期、宝箱坐标和连通性。

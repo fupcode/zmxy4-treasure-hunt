@@ -2,16 +2,17 @@
 
 import json
 from datetime import date
+from importlib.resources import files
 from unittest.mock import patch
-from pathlib import Path
 import unittest
 
 import numpy as np
 
+from zmxy4_treasure_hunt.maze import maps
 from zmxy4_treasure_hunt.maze.navigation import Graph
 from zmxy4_treasure_hunt.maze.map_templates import current_weekday, load_weekday_map
 
-MAPS = Path(__file__).resolve().parents[2] / "maps"
+MAPS = files(maps)
 
 
 class MapTemplateTests(unittest.TestCase):

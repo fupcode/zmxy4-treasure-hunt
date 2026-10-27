@@ -25,10 +25,13 @@ class WallObservation:
     treasures: list[tuple[int, int]]
     vertical_lines: list[float]
     horizontal_lines: list[float]
+    valid_pixels: np.ndarray | None = None
 
 
-def locate_character(image):
+def locate_character(image, valid_pixels=None):
     mask = cv2.inRange(image, (0, 0, 0), (0, 0, 0))
+    if valid_pixels is not None:
+        mask[~valid_pixels] = 0
     opening = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     opening[:20, :] = opening[-20:, :] = 0
     opening[:, :20] = opening[:, -20:] = 0
@@ -56,7 +59,7 @@ def locate_game(image):
     return (left, top), (right, bottom)
 
 
-def detect_walls(image, character):
+def detect_walls(image, character, valid_pixels=None):
     center_x, center_y, radius = character.x, character.y, character.radius
 
     def is_approximately_equal(val, target, tolerance=0.001):
@@ -72,6 +75,8 @@ def detect_walls(image, character):
     wall_mask = wall_mask.astype(np.uint8) * 255
 
     wall_mask = wall_mask & ~character_mask
+    if valid_pixels is not None:
+        wall_mask[~valid_pixels] = 0
 
     # 去噪点
     hls = cv2.medianBlur(hls, 5)
@@ -80,6 +85,8 @@ def detect_walls(image, character):
     bao_mask = (hls[:, :, 0] <= 12) & (hls[:, :, 2] >= 120) & (hls[:, :, 2] <= 200)
     bao_mask = bao_mask.astype(np.uint8) * 255
     box_mask = bao_mask & ~character_mask
+    if valid_pixels is not None:
+        box_mask[~valid_pixels] = 0
 
     contours, _ = cv2.findContours(box_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -98,6 +105,11 @@ def detect_walls(image, character):
     wall_closed = cv2.erode(wall_dilated, kernel, iterations=1)
     # Canny边缘检测
     edges = cv2.Canny(wall_closed, 50, 100, apertureSize=3)
+    if valid_pixels is not None:
+        # 可信区边界本身也会产生 Canny 边缘，收缩一圈后排除。
+        safe = cv2.erode(valid_pixels.astype(np.uint8), kernel) != 0
+        edges[~safe] = 0
+        wall_dilated[~valid_pixels] = 0
     # 使用Hough Transform检测直线
     # 宝箱纹理会产生大量短直线，不能仅按人物半径设置支持长度。
     line_threshold = max(radius, 20, min(image.shape[:2]) // 8)
@@ -114,4 +126,4 @@ def detect_walls(image, character):
         elif is_approximately_equal(theta, np.pi / 2):  # 水平
             horizontal_lines.append(float(rho))
 
-    return WallObservation(wall_dilated, treasures, vertical_lines, horizontal_lines)
+    return WallObservation(wall_dilated, treasures, vertical_lines, horizontal_lines, valid_pixels)

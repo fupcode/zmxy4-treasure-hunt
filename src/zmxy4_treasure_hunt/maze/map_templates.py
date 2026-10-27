@@ -3,11 +3,13 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
 
-MAPS_DIR = Path(__file__).resolve().parents[3] / "maps"
+from . import maps
+
 CHINA_TIME = timezone(timedelta(hours=8))
 
 
@@ -23,11 +25,12 @@ def current_weekday(day=None):
     return day.isoweekday() % 7
 
 
-def load_weekday_map(weekday=None, maps_dir=MAPS_DIR):
+def load_weekday_map(weekday=None, maps_dir=None):
     weekday = current_weekday() if weekday is None else weekday
     if type(weekday) is not int or not 0 <= weekday <= 6:
         raise ValueError("weekday 必须为 0（星期日）至 6（星期六）")
-    path = Path(maps_dir) / f"{weekday}.json"
+    directory = files(maps) if maps_dir is None else Path(maps_dir)
+    path = directory.joinpath(f"{weekday}.json")
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("schema_version") != 1 or data.get("weekday") != weekday:
         raise ValueError(f"地图版本或星期编号不匹配：{path}")

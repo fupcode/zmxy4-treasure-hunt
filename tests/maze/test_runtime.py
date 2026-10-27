@@ -97,11 +97,15 @@ class RunnerTests(unittest.TestCase):
                                       [10, 20, 80, 90, 150], [10, 20, 80, 90, 150])
         view = runner.template.cells.copy()
         runner.maze.load_view(view, (1, 1))
-        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', return_value=Character(50, 50, 10)), \
-             patch('zmxy4_treasure_hunt.maze.ft.detect_walls', return_value=observation), \
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', return_value=Character(50, 50, 10)) as locate, \
+             patch('zmxy4_treasure_hunt.maze.ft.detect_walls', return_value=observation) as detect, \
              patch.object(runner.maze.grid, 'update'), \
              patch.object(runner.maze.grid, 'analyze', return_value=(view, (1, 3), (0, 0))):
             result = runner.step()
+        self.assertIs(locate.call_args.args[1], runner.mask_restorer.valid_pixels)
+        self.assertIs(detect.call_args.args[0], locate.call_args.args[0])
+        self.assertIs(detect.call_args.args[2], runner.mask_restorer.valid_pixels)
+        self.assertIsNot(locate.call_args.args[0], frame)
         self.assertEqual(runner.maze.char_coord, (1, 3))
         self.assertEqual(result.movements, 'D')
         self.assertTrue(result.approaching_treasure)
@@ -205,3 +209,10 @@ class RunnerTests(unittest.TestCase):
                 FindTreasure()
         capture.assert_not_called()
         controller.assert_not_called()
+
+    def test_fake_treasure_darkness_detection_uses_raw_capture(self):
+        runner, capture, _ = self.make_runner()
+        capture.grab.return_value = np.zeros((120, 600, 3), dtype=np.uint8)
+        with patch.object(runner.mask_restorer, 'restore', side_effect=AssertionError('不得反算黑屏检测帧')), \
+             patch('zmxy4_treasure_hunt.maze.ft.time.sleep'):
+            self.assertTrue(runner.next())

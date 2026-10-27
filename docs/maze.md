@@ -19,9 +19,9 @@ $env:PYTHONPATH = 'src'
 
 `--interval` 是包含处理时间的最小循环间隔，默认 0.05 秒；截图单次等待上限为 5 秒。
 
-启动时按北京时间的星期加载项目 `maps/0.json` 至 `maps/6.json`，星期日为 0、星期一为 1。
+启动时按北京时间的星期加载包内 `maze/maps/0.json` 至 `maze/maps/6.json`，星期日为 0、星期一为 1。
 程序直接使用完整地图，沿最短路径前往最近的剩余宝箱，不再探索或拼接未知区域。
-地图缺失、格式错误时直接报错；格式与地图来源见 [地图说明](../maps/README.md)。
+地图缺失、格式错误时直接报错；格式与地图来源见 [地图说明](../src/zmxy4_treasure_hunt/maze/maps/README.md)。
 
 ## 模块职责
 
@@ -32,6 +32,7 @@ $env:PYTHONPATH = 'src'
 | `controls.py` | 鼠标点击、方向键变化和统一松键 |
 | `vision.py` | 人物、宝箱、墙壁线条及窗口区域识别 |
 | `viewport.py` | 金色外框颜色、四角和暗色直边联合定位视区 |
+| `mask.py` | 原始黑色 Alpha 遮罩反算、缓存增益与可信像素区域 |
 | `grid.py` | 格距标定、补线、局部格网和人物偏移 |
 | `map_templates.py` | 按北京时间选择星期、读取并校验完整地图 |
 | `navigation.py` | 在完整地图中定位、BFS 宝箱最短路径和移动建议 |
@@ -51,7 +52,16 @@ $env:PYTHONPATH = 'src'
 不会猜测起点、覆盖地图墙壁或切回探索。墙线检测过滤宝箱纹理造成的短直线干扰。
 格距校准、人物掩膜和颜色阈值仍需用实际游戏画面校验。
 
+定位视区后，按实际宽高缩放原始 `620×344` 遮罩，缓存透光率 `T=1-alpha` 和增益。
+每帧先反算 `恢复图像=截图/T`，再识别人物和墙线。素材位于 `maze/assets/edge_mask.png`，
+来自原 SWF，只读取 Alpha，不依赖外部反编译目录。
+显示反算阈值为 `T>=0.03`；识别使用更严格的 `T>=0.15`，极暗边缘不参与人物、宝箱或墙线识别。
+格网连接格的可信像素不足 60% 时只标为本帧不可观测，不修改完整地图，也不当作墙壁。
+完全不透明区域无法恢复；反算后的极暗边缘仍可能有量化和对齐噪声。
+这些处理作用于程序收到的截图，不修改游戏窗口本身的渲染。
+
 顶部暗场表示触发假宝箱：立即松键，等待 5 秒（覆盖约 3 秒黑屏）后继续导航。
+暗场检测继续使用未提亮的原始截图，额外黑屏不作为边缘遮罩处理。
 假宝箱触发后消失，对应格子恢复为普通道路；保留完整地图、人物位置、格距和移动历史，
 不点击旧版过关按钮，也不回到游戏起始点。仅修改内存中的本局状态，JSON 模板保持原样。
 所有候选宝箱都处理完毕后停止。
@@ -69,7 +79,9 @@ $env:PYTHONPATH = 'src'
 ```
 
 输出位于 `images/maze/viewport_debug/`：`marked.png` 为矩形/四角标注，
-`viewport.png` 为裁剪视区，`report.json` 为位置和各项评分。
+`viewport.png` 为原始裁剪视区，`viewport_restored.png` 为反算图，
+`recognition_mask.png` 为可信识别区域，`comparison.png` 为左右对照图，
+`screenshot_restored.png` 为恢复后贴回的完整截图，`report.json` 为位置、评分和处理区域比例。
 
 ## 离线回归
 
@@ -82,3 +94,23 @@ $env:PYTHONPATH = 'src'
 横纵独立格距、全局定位与视图跟踪、七张地图的宝箱路线、按键变化和错误清理。
 本地存在 `images/maze/ft*.png` 时，还会验证七张原图的墙线识别与定位（使用预设人物坐标）。
 不连接游戏，不发送真实鼠标或键盘操作。
+
+## PyInstaller 打包
+
+七张地图位于 `src/zmxy4_treasure_hunt/maze/maps/`，遮罩位于 `maze/assets/`。
+地图和遮罩都通过 `importlib.resources` 读取，不依赖启动目录，不需要在 exe 旁另放 `maps/`。
+数据是只读模板，运行中只修改内存。
+
+独立入口为项目根目录 `maze_main.py`。在项目根目录执行：
+
+```powershell
+uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze maze_main.py
+```
+
+生成 `dist/maze/maze-hunt.exe`。将 `--onefile` 换成 `--onedir` 可生成目录版。
+项目安装后的包元数据也会注册 hook；上述命令显式指定 hook 目录，方便直接从源码打包。
+该 hook 只收集七张地图 JSON 和遮罩 PNG。机制参考 [PyInstaller 官方 hook 文档](https://pyinstaller.org/en/stable/hooks.html#providing-pyinstaller-hooks-with-your-package)。
+
+纯资源验收入口为 `tools/check_maze_resources.py`，不会截图或发送游戏操作。
+可以按相同参数打包这个入口，在没有项目 `maps/` 的工作目录运行 exe，验证资源确实来自包内。

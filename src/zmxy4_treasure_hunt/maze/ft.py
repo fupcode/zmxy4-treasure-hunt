@@ -10,6 +10,7 @@ import numpy as np
 from .capture import ScreenCapture
 from .controls import MovementController
 from .map_templates import load_weekday_map
+from .mask import MaskRestorer
 from .navigation import Maze
 from .vision import detect_walls, locate_character, locate_game
 
@@ -45,6 +46,7 @@ class FindTreasure:
                 raise ValueError("region 必须为显示器内的整数坐标 (left, top, right, bottom)")
             self.width = self.region[2] - self.region[0]
             self.height = self.region[3] - self.region[1]
+            self.mask_restorer = MaskRestorer(self.width, self.height)
             self.maze = Maze(self.width, self.height, self.template.cells)
         except BaseException:
             self.close()
@@ -80,9 +82,10 @@ class FindTreasure:
     def step(self):
         """执行一帧；识别或规划失败时立即松开方向键。"""
         try:
-            image = self.capture.grab(self.region)
-            character = locate_character(image)
-            observation = detect_walls(image, character)
+            raw_image = self.capture.grab(self.region)
+            frame = self.mask_restorer.restore(raw_image)
+            character = locate_character(frame.image, frame.valid_pixels)
+            observation = detect_walls(frame.image, character, frame.valid_pixels)
             result = self.maze.analyze(observation, character)
             self.controller.apply(result.movements)
             self.maze.record_movements(result.movements)

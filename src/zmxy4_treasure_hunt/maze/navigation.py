@@ -160,7 +160,7 @@ class Maze:
     def analyze(self, observation, character):
         self.grid.update(observation.vertical_lines, observation.horizontal_lines)
         view, view_char, self.char_offset = self.grid.analyze(
-            observation.image, (character.x, character.y), observation.treasures
+            observation.image, (character.x, character.y), observation.treasures, observation.valid_pixels
         )
         return self.load_view(view, view_char)
 

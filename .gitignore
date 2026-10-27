@@ -89,6 +89,7 @@ version.json
 .idea/
 .vscode/
 *.png
+!src/zmxy4_treasure_hunt/maze/assets/edge_mask.png
 *.onnx
 *.pt
 

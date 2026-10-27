@@ -16,7 +16,7 @@ class VisionTests(unittest.TestCase):
         with patch('cv2.imshow', side_effect=AssertionError('No UI in vision')):
             result = locate_character(image)
         self.assertEqual((result.x, result.y), (80, 60))
-        self.assertGreaterEqual(result.radius, 15)
+        self.assertGreater(result.radius, result.ring_radius)
         np.testing.assert_array_equal(image, original)
 
     def test_bgr_wall_and_treasure_detection_keeps_source_unchanged(self):

@@ -1,4 +1,4 @@
-"""RGB 图片检测与可视化：uv run python tests/onnx_test.py images/example.png。"""
+"""RGB 图片检测与可视化：uv run python tools/voyage_onnx_test.py images/example.png。"""
 
 import argparse
 from pathlib import Path

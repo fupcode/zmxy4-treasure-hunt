@@ -20,13 +20,3 @@ $env:PYTHONPATH = 'src'
 ```
 
 `test_env_execution.py` 验证环境执行流程、感知与导航边界及动作状态。
-
-手动图片诊断和性能比较脚本保留在 `tests/` 根目录，不纳入上述自动测试：
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 tests/collision_test.py images/dead1.png --map-index 1 --level 1 --force-detect --no-show
-.\.venv\Scripts\python.exe -X utf8 tests/onnx_test.py images/dead1.png --no-show
-.\.venv\Scripts\python.exe -X utf8 tests/benchmark_maze.py
-```
-
-碰撞诊断的地图编号和关卡需要与图片对应。

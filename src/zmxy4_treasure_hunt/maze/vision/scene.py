@@ -36,7 +36,7 @@ def locate_character(image, valid_pixels=None):
         raise DetectionError("未找到唯一且有足够可见圆弧支持的人物黑圈")
     x, y, radius, _ = ring
     # 定位使用圆心；墙线识别使用更大的掩膜，覆盖突出黑圈的头发、冠饰。
-    return Character(round(x), round(y), max(1, int(np.ceil(radius * 2))), radius)
+    return Character(round(x), round(y), max(1, int(np.ceil(radius * 1.4))), radius)
 
 
 def locate_game(image):

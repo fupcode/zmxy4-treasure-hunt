@@ -1,4 +1,4 @@
-"""手动碰撞可视化：python tests/collision_test.py images/boss.png --level 4。
+"""手动碰撞可视化：python tools/voyage_collision_test.py images/boss.png --level 4。
 
 左图：所有检测框、实体位置、碰撞范围、弹幕方向和掉落物。
 右图：原始障碍框、膨胀后的寻路障碍、战斗禁区和出口。

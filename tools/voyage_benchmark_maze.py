@@ -1,4 +1,4 @@
-"""运行：python tests/benchmark_maze.py；比较包含预处理和数据转换的完整寻路耗时。"""
+"""运行：python tools/voyage_benchmark_maze.py；比较包含预处理和数据转换的完整寻路耗时。"""
 
 import statistics
 import time

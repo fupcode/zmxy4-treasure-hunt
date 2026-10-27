@@ -27,7 +27,7 @@ $env:VIRTUAL_ENV = Join-Path $PWD '.venv'
 ```powershell
 .venv/Scripts/python.exe -c "from zmxy4_treasure_hunt.voyage.core.maze_utils import _native_region_path; print(_native_region_path is not None)"
 .venv/Scripts/python.exe -m unittest discover -s tests/voyage -p 'test_maze*.py'
-.venv/Scripts/python.exe tests/benchmark_maze.py
+.venv/Scripts/python.exe tools/voyage_benchmark_maze.py
 ```
 
 Rust 搜索持有 GIL，直接借用 NumPy 数组，不复制输入；Python 仅在 dtype、连续布局不匹配

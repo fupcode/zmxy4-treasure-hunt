@@ -97,7 +97,7 @@ voyager = Voyager(timeout=5, stay_timeout=60, combat_timeout=60)
 碰撞框用于数组切片的右/下边界允许等于宽/高；归一化浮点坐标本身不取整。
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 tests/collision_test.py images/boss.png --map-index 0 --level 4
+.\.venv\Scripts\python.exe -X utf8 tools/voyage_collision_test.py images/boss.png --map-index 0 --level 4
 ```
 
 左图标记全部 YOLO 检测框（黄色虚线）、敌人控制器碰撞箱（绿色）、

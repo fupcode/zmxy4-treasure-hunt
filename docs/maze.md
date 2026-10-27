@@ -82,7 +82,7 @@ $env:PYTHONPATH = 'src'
 可使用真实截图离线复核，不启动游戏或发送按键：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 tools/check_maze_viewport.py images/maze/full.png
+.\.venv\Scripts\python.exe -X utf8 tools/maze_check_viewport.py images/maze/full.png
 ```
 
 输出位于 `images/maze/viewport_debug/`：`marked.png` 为矩形/四角标注，
@@ -95,7 +95,7 @@ $env:PYTHONPATH = 'src'
 四个人物样例的黑圈识别鲁棒性可单独测试：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 tools/check_character_robustness.py
+.\.venv\Scripts\python.exe -X utf8 tools/maze_check_character_robustness.py
 ```
 
 输入为已裁剪的 `images/maze/ch2.png`、`ch5.png`、`ch6.png`、`ch7.png`，每张测试 40 组：
@@ -149,13 +149,13 @@ uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
 失败现场可以离线重放，不启动游戏、不发送按键：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 tools/debug_maze_alignment.py runs/maze-debug/目录/raw.png --cropped --state runs/maze-debug/目录/report.json
+.\.venv\Scripts\python.exe -X utf8 tools/maze_debug_alignment.py runs/maze-debug/目录/raw.png --cropped --state runs/maze-debug/目录/report.json
 ```
 
 也能从完整截图重新诊断（用 `--weekday 0..6` 指定截图拍摄时的地图，不一定是今天）：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 tools/debug_maze_alignment.py images/maze/full.png --weekday 2
+.\.venv\Scripts\python.exe -X utf8 tools/maze_debug_alignment.py images/maze/full.png --weekday 2
 ```
 
 判读顺序：
@@ -181,5 +181,5 @@ uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
 辅以连通圆弧候选，在遮挡时通过可见弧段拟合圆心和半径。
 半径范围随视区缩放；候选需满足环外亮度反差、径向梯度方向和圆周半径一致性，
 排除墙角及宝箱纹理。不同位置存在同样可信的圆环时拒绝猜测。
-圆心用于导航，约两倍黑圈半径的掩膜用于排除冠饰、头发和头像对墙线识别的干扰。
+圆心用于导航，1.4 倍黑圈半径的掩膜用于排除冠饰、头发和头像对墙线识别的干扰。
 只有少量黑点、圆弧过少或不可信区域遮挡过多时仍会停止识别。

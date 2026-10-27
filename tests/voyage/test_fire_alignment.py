@@ -44,13 +44,15 @@ class FireAlignmentTests(unittest.TestCase):
                 with self.subTest(level=level, progress=progress):
                     enemy.fire_cool_down = duration * (1 - progress)
                     danger = self.regions([enemy])[3]
-                    expected = np.maximum(0, base_radius * progress - enemy.distance_array)
+                    expected = np.maximum(0, base_radius * (0.5 + 0.5 * progress) - enemy.distance_array)
                     np.testing.assert_allclose(danger, expected)
 
         self.game_map.level = 1
         ready = self.enemy(x=80, y=80)
         cooling = self.enemy(x=220, y=120, cooldown=3)
-        np.testing.assert_array_equal(self.regions([ready, cooling])[3], self.regions([ready])[3])
+        expected = (np.maximum(0, 40 - ready.get_distance_array())
+                    + np.maximum(0, 20 - cooling.get_distance_array()))
+        np.testing.assert_array_equal(self.regions([ready, cooling])[3], expected)
 
 
     def test_lower_alignment_edges_cannot_be_targets_or_stop_positions(self):

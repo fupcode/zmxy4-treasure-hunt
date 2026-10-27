@@ -585,9 +585,9 @@ class Map:
             flee_const = 56
         for enemy in enemy_list:
             if enemy is not None:
-                # 剩余冷却秒数越少，敌人再次开火的风险越高，避让范围逐渐恢复。
+                # 刚开火时保留一半避让范围，随冷却进度线性恢复到最大值。
                 cooled_ratio = np.clip(1.0 - enemy.fire_cool_down / enemy.cool_down_time, 0.0, 1.0)
-                enemy_distance_r = flee_const * cooled_ratio - enemy.distance_array
+                enemy_distance_r = flee_const * (0.5 + 0.5 * cooled_ratio) - enemy.distance_array
                 enemy_distance_r[enemy_distance_r < 0] = 0
                 flee_region_enemy += enemy_distance_r
 

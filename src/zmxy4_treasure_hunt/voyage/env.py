@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from zmxy4_treasure_hunt.voyage.game_window import GameWindow
-from zmxy4_treasure_hunt.voyage.core.action_manager import ActionManager, click, key_down
+from zmxy4_treasure_hunt.voyage.core.action_manager import ActionManager, key_down
 from zmxy4_treasure_hunt.voyage.core.constants import MAZE_HEIGHT, MAZE_WIDTH
 from zmxy4_treasure_hunt.voyage.core.direction import Direction
 from zmxy4_treasure_hunt.voyage.core.entities import Bullets, EnemyList, FallingItems, Player
@@ -100,7 +100,7 @@ class Env:
         return 0
 
     def init_window(self, outer_window_box=None, *, focus_game=True):
-        self.game_window.init_window(outer_window_box)
+        self.game_window.init_window(outer_window_box, focus_game=focus_game)
         self.window_size = self.game_window.window_size
 
         if self.render_enabled:
@@ -108,10 +108,6 @@ class Env:
             cv2.imshow("Monitor", image)
             cv2.moveWindow("Monitor", 0, 0)
             cv2.setWindowProperty("Monitor", cv2.WND_PROP_TOPMOST, 1)
-
-        if focus_game:
-            x1, y1, x2, y2 = self.game_window.window_box
-            click(x2 - 10, y2 - 10)
 
     def reset(self):
         self._reset_combat_timer()
@@ -272,7 +268,7 @@ class Env:
             time.sleep(0.035)
             return self.update()
 
-        while self.new_level:
+        while self.new_level and self.player:
             if self.map.get_task() == 5:
                 status_code = loop_act(None)
                 if status_code:
@@ -378,8 +374,9 @@ class Env:
         if self.map.debug_image is not None:
             image += self.map.debug_image
 
-        cv2.circle(image, (self.player.x, self.player.y), 4, (0, 255, 0), -1)
-        cv2.circle(image, (self.player.x, self.player.y), 1, (0, 0, 255), -1)
+        if self.player:
+            cv2.circle(image, (self.player.x, self.player.y), 4, (0, 255, 0), -1)
+            cv2.circle(image, (self.player.x, self.player.y), 1, (0, 0, 255), -1)
         for enemy in self.enemy_list:
             cv2.circle(image, (enemy.x, enemy.y), 4, (0, 0, 255), -1)
             cv2.rectangle(image, (enemy.x1, enemy.y1), (enemy.x2, enemy.y2), (0, 0, 255), 2)

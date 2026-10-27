@@ -60,7 +60,7 @@ class GameWindowImageTests(unittest.TestCase):
     def test_offline_processing_preserves_source_and_uses_threshold(self):
         box = DetectionResult(0.9, [0.2, 0.3, 0.4, 0.6])
         model = Mock(return_value={
-            "enemy": [box], "player": [], "bullet": [],
+            "enemy": [box], "player": [box], "bullet": [],
             "pao": [], "dan": [], "fan": [], "jia": [],
         })
         with patch("zmxy4_treasure_hunt.voyage.game_window.dxcam.create") as capture, \
@@ -78,6 +78,29 @@ class GameWindowImageTests(unittest.TestCase):
         self.assertFalse(np.shares_memory(image, model.call_args.args[0]))
         with self.assertRaisesRegex(RuntimeError, "capture is disabled"):
             window.capture_screen()
+
+    def test_first_missing_player_retries_then_reuses_last_detection(self):
+        box = DetectionResult(0.9, [0.2, 0.3, 0.4, 0.6])
+        detections = {
+            "enemy": [], "player": [], "bullet": [],
+            "pao": [], "dan": [], "fan": [], "jia": [],
+        }
+        with patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel",
+                   return_value=Mock(return_value=detections)):
+            window = GameWindow(capture_enabled=False)
+        image = np.zeros((200, 320, 3), dtype=np.uint8)
+        with (
+            patch.object(window, "locate_map_contours", return_value=[object()]),
+            patch.object(window, "get_hit_point", return_value=4),
+        ):
+            self.assertEqual(window.update_from_image(image), -1)
+            self.assertIsNone(window.player_box)
+            detections["player"] = [box]
+            self.assertEqual(window.update_from_image(image), 0)
+            self.assertIs(window.player_box, box)
+            detections["player"] = []
+            self.assertEqual(window.update_from_image(image), 0)
+            self.assertIs(window.player_box, box)
 
     def test_status_gate_and_debug_override(self):
         model = Mock(return_value={

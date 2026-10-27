@@ -55,7 +55,7 @@ class GameWindow:
 
         self.items = {"pao": False, "dan": False, "fan": False}
 
-    def init_window(self, outer_window_box=None):
+    def init_window(self, outer_window_box=None, *, focus_game=True):
         screen_image = self.capture_screen(outer_window_box)
         screen_image_hls = cv2.cvtColor(screen_image, cv2.COLOR_RGB2HLS)
         self.window_box = self.locate_window(screen_image_hls)
@@ -71,6 +71,11 @@ class GameWindow:
 
         print("Window Box:", self.window_box)
         print(f"Window Size: {width} x {height} = {width * height}")
+
+        if focus_game:
+            left, top, _, _ = self.window_box
+            click(left + min(10, (width - 1) // 2),
+                  top + min(10, (height - 1) // 2))
 
     def get_map_index_at_start(self):
         frame = self.capture_screen(box=self.window_box)
@@ -114,6 +119,11 @@ class GameWindow:
         self.enemy_boxes = det['enemy']
         self.falling_items_normal = self.filter_falling_items(det)
         self.bullet_list_normal = self.filter_bullet(det, frame)
+
+        # 首次尚无玩家位置时，交给环境重试，避免构造 Player(None, maze)。
+        # 离线强制检测仍可查看没有玩家的图片；后续漏检沿用上一帧玩家框。
+        if check_status and self.player_box is None:
+            return -1
 
         return 0
 

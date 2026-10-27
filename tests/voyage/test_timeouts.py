@@ -4,7 +4,11 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+
 from zmxy4_treasure_hunt.voyage.env import Env
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
 
 
 class TimeoutTests(unittest.TestCase):
@@ -41,6 +45,55 @@ class TimeoutTests(unittest.TestCase):
         env.new_level = False
         env.render = Mock()
         return env
+
+    def make_env_with_missing_player(self):
+        env = self.make_env()
+        detections = {
+            "player": [], "enemy": [], "bullet": [],
+            "pao": [], "dan": [], "fan": [], "jia": [],
+        }
+        model = Mock(return_value=detections)
+        with patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel", return_value=model):
+            env.game_window = GameWindow(capture_enabled=False)
+        self.enterContext(patch.object(env.game_window, "capture_screen",
+                                      return_value=np.zeros((200, 320, 3), dtype=np.uint8)))
+        self.enterContext(patch.object(env.game_window, "locate_map_contours", return_value=[object()]))
+        self.enterContext(patch.object(env.game_window, "get_hit_point", return_value=4))
+        return env, detections
+
+    def test_first_player_detection_recovers_before_creating_player(self):
+        env, detections = self.make_env_with_missing_player()
+        box = DetectionResult(0.9, [0.2, 0.3, 0.4, 0.6])
+        player = SimpleNamespace(is_next=lambda other: False)
+
+        def wait(_):
+            self.assertIsNone(env.player)
+            self.now += 0.1
+            detections["player"] = [box]
+
+        with (
+            patch("zmxy4_treasure_hunt.voyage.env.time.sleep", side_effect=wait),
+            patch("zmxy4_treasure_hunt.voyage.env.Player", return_value=player) as create_player,
+        ):
+            self.assertEqual(env.update(), 0)
+        create_player.assert_called_once_with(box, env.map.get_maze.return_value)
+        self.assertIs(env.player, player)
+
+    def test_first_player_detection_timeout_never_creates_player(self):
+        env, _ = self.make_env_with_missing_player()
+
+        def wait(_):
+            self.now += 1
+
+        with (
+            patch("zmxy4_treasure_hunt.voyage.env.time.sleep", side_effect=wait),
+            patch("zmxy4_treasure_hunt.voyage.env.Player") as create_player,
+        ):
+            self.assertEqual(env.update(), -4)
+        create_player.assert_not_called()
+        self.assertIsNone(env.player)
+        env.map.get_maze.assert_not_called()
+        self.assertEqual(env.combat_elapsed_seconds, 0)
 
     def test_deadline_same_level_and_reset_on_new_level(self):
         env = self.make_env()
@@ -121,6 +174,7 @@ class TimeoutTests(unittest.TestCase):
         for status in (-3, -4):
             env = self.make_env()
             env.new_level = True
+            env.player = Mock()
             env.map.get_task = Mock(return_value=5)
             env.update = Mock(return_value=status)
             with patch("zmxy4_treasure_hunt.voyage.env.time.sleep"):

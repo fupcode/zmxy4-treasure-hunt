@@ -15,7 +15,6 @@ class RenderConfigTests(unittest.TestCase):
     def test_disabled_skips_window_render_but_keeps_fps_counter(self):
         with patch("zmxy4_treasure_hunt.voyage.env.GameWindow") as window_class, \
              patch("zmxy4_treasure_hunt.voyage.env.FrameRateCalculator") as fps_class, \
-             patch("zmxy4_treasure_hunt.voyage.env.click") as click, \
              patch("zmxy4_treasure_hunt.voyage.env.cv2.imshow") as imshow, \
              patch("zmxy4_treasure_hunt.voyage.env.cv2.moveWindow") as move_window, \
              patch("zmxy4_treasure_hunt.voyage.env.cv2.setWindowProperty") as set_property, \
@@ -26,8 +25,7 @@ class RenderConfigTests(unittest.TestCase):
             env.init_window()
             with patch("zmxy4_treasure_hunt.voyage.env.np.zeros", side_effect=AssertionError("不应创建渲染画布")):
                 env.render([(1, 1), (2, 2)])
-            window_class.return_value.init_window.assert_called_once_with(None)
-            click.assert_called_once_with(790, 590)
+            window_class.return_value.init_window.assert_called_once_with(None, focus_game=True)
             fps_class.assert_called_once_with()
             fps_class.return_value.trigger.assert_not_called()
             for operation in (imshow, move_window, set_property, wait_key):

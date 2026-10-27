@@ -1,15 +1,15 @@
 # YOLO 训练
 
 Windows 下项目已将 `torch`、`torchvision` 绑定到 PyTorch 官方 CUDA 13.0 源，
-用于 RTX 50 系显卡。运行 `uv sync` 安装，首次需要下载较大的 CUDA 版 wheel。
-可用 `uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
+用于 RTX 50 系显卡。运行 `uv sync --group train` 安装训练和导出依赖，首次需要下载较大的 CUDA 版 wheel。
+可用 `uv run --group train python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
 确认安装结果，最后一项应为 `True`。
 
 在项目根目录运行（使用项目已有的 uv 环境）：
 
 ```powershell
-uv run python yolo/train.py --dry-run
-uv run python yolo/train.py
+uv run --group train python yolo/train.py --dry-run
+uv run --group train python yolo/train.py
 ```
 
 默认使用 `zaomeng.v2i.yolo26/data.yaml` 和 `yolo26n.pt`，训练 100 轮、
@@ -19,7 +19,7 @@ uv run python yolo/train.py
 指定 GPU 和训练参数：
 
 ```powershell
-uv run python yolo/train.py --device 0 --model yolo26s.pt --epochs 200 --batch 8 --imgsz 960
+uv run --group train python yolo/train.py --device 0 --model yolo26s.pt --epochs 200 --batch 8 --imgsz 960
 ```
 
 显存不足时调小 `--batch` 或 `--imgsz`。Windows 默认 `--workers 0`，
@@ -30,7 +30,7 @@ uv run python yolo/train.py --device 0 --model yolo26s.pt --epochs 200 --batch 8
 `weights/best.pt` 是最佳权重，`weights/last.pt` 用于中断后续训：
 
 ```powershell
-uv run python yolo/train.py --resume yolo/runs/zaomeng/weights/last.pt
+uv run --group train python yolo/train.py --resume yolo/runs/zaomeng/weights/last.pt
 ```
 
 续训沿用断点中的原始训练计划；`--epochs`、`--model` 等新训练参数不会覆盖它。
@@ -38,9 +38,9 @@ uv run python yolo/train.py --resume yolo/runs/zaomeng/weights/last.pt
 ## 导出免 NMS ONNX
 
 ```powershell
-uv run python yolo/export.py
+uv run --group train python yolo/export.py
 # 若训练结果目录自动递增，指定实际权重路径
-uv run python yolo/export.py --weights yolo/runs/zaomeng2/weights/best.pt --max-det 300
+uv run --group train python yolo/export.py --weights yolo/runs/zaomeng2/weights/best.pt --max-det 300
 ```
 
 导出脚本固定 `nms=False`，选择 YOLO26 的免 NMS 检测头，输出每行

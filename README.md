@@ -7,6 +7,9 @@
 基于 YOLO 目标识别和规则寻路实现自动航海。运行方式、状态码和调试说明见
 [环境文档](docs/env.md)，目标识别模型训练见 [YOLO 文档](yolo/README.md)。
 
+`uv sync` 仅安装主程序依赖；训练或导出模型时使用 `uv sync --group train`，
+运行训练和导出脚本时使用 `uv run --group train python ...`。
+
 寻路的 A* 核心通过 PyO3 使用 Rust 加速。安装项目（如 `uv sync`）时会自动编译，
 需要 Rust 工具链；Windows 还需要 Visual Studio C++ Build Tools。
 已存在虚拟环境时，可仅编译扩展，不更新其他项目依赖：

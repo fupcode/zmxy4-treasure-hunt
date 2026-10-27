@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.entities import Enemy, EnemyList
-from zaomeng_hanghai.core.onnx_model import DetectionResult
+from zmxy4_treasure_hunt.voyage.core.entities import Enemy, EnemyList
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
 
 
 class EnemyCooldownTests(unittest.TestCase):

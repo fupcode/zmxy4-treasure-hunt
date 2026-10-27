@@ -4,13 +4,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-from zaomeng_hanghai.env import Env
+from zmxy4_treasure_hunt.voyage.env import Env
 
 
 class TimeoutTests(unittest.TestCase):
     def setUp(self):
         self.now = 0.0
-        clock = patch("zaomeng_hanghai.env.time.monotonic", side_effect=lambda: self.now)
+        clock = patch("zmxy4_treasure_hunt.voyage.env.time.monotonic", side_effect=lambda: self.now)
         clock.start()
         self.addCleanup(clock.stop)
 
@@ -94,7 +94,7 @@ class TimeoutTests(unittest.TestCase):
         def wait(_):
             self.now += 1
 
-        with patch("zaomeng_hanghai.env.time.sleep", side_effect=wait):
+        with patch("zmxy4_treasure_hunt.voyage.env.time.sleep", side_effect=wait):
             self.assertEqual(env.update(), -4)
         self.assertEqual(env.combat_elapsed_seconds, 10)
 
@@ -108,13 +108,13 @@ class TimeoutTests(unittest.TestCase):
             self.now += 4
 
         player = SimpleNamespace(is_next=lambda other: False)
-        with patch("zaomeng_hanghai.env.time.sleep", side_effect=wait), \
-             patch("zaomeng_hanghai.env.Player", return_value=player):
+        with patch("zmxy4_treasure_hunt.voyage.env.time.sleep", side_effect=wait), \
+             patch("zmxy4_treasure_hunt.voyage.env.Player", return_value=player):
             self.assertEqual(env.update(), 0)
         self.assertEqual(env.combat_elapsed_seconds, 10)
         self.now = 124
         env.game_window.update.side_effect = None
-        with patch("zaomeng_hanghai.env.Player", return_value=player):
+        with patch("zmxy4_treasure_hunt.voyage.env.Player", return_value=player):
             self.assertEqual(env.update(), -3)
 
     def test_auto_start_propagates_engine_and_combat_status(self):
@@ -123,11 +123,11 @@ class TimeoutTests(unittest.TestCase):
             env.new_level = True
             env.map.get_task = Mock(return_value=5)
             env.update = Mock(return_value=status)
-            with patch("zaomeng_hanghai.env.time.sleep"):
+            with patch("zmxy4_treasure_hunt.voyage.env.time.sleep"):
                 self.assertEqual(env.try_start_level(), status)
             env.move_to_enemy_and_update = Mock(return_value=0)
             env.try_next_level = Mock()
-            with patch("zaomeng_hanghai.env.time.sleep"):
+            with patch("zmxy4_treasure_hunt.voyage.env.time.sleep"):
                 self.assertEqual(env.auto_step(), status)
             env.try_next_level.assert_not_called()
 

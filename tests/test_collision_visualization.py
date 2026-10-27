@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from collision_test import draw_scene, mask_rectangles, raw_obstacle_mask
-from zaomeng_hanghai.core.entities import Bullets, EnemyList, FallingItems, Player
-from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.core.onnx_model import DetectionResult
+from zmxy4_treasure_hunt.voyage.core.entities import Bullets, EnemyList, FallingItems, Player
+from zmxy4_treasure_hunt.voyage.core.map import Map
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
 
 
 class CollisionVisualizationTests(unittest.TestCase):

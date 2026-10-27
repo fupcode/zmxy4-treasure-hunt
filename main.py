@@ -6,8 +6,8 @@ import win32gui
 import traceback
 from PIL import Image, ImageGrab, ImageTk
 
-from zaomeng_hanghai.env import Env, auto_loop
-from zaomeng_hanghai.game_window import GameWindowError
+from zmxy4_treasure_hunt.voyage.env import Env, auto_loop
+from zmxy4_treasure_hunt.voyage.game_window import GameWindowError
 
 
 class ClickCapture:

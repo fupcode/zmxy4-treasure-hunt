@@ -17,15 +17,15 @@ from matplotlib.patches import Patch, Rectangle
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from zaomeng_hanghai.core.constants import (
+from zmxy4_treasure_hunt.voyage.core.constants import (
     BULLET_AVOID_HEIGHT, BULLET_AVOID_WIDTH,
     END_DOWN, END_LEFT, END_RIGHT, END_UP, EXIT_DOWN, EXIT_LEFT, EXIT_RIGHT, EXIT_UP,
     HIT_HEIGHT, HIT_WIDTH,
     MAP_DOWN, MAP_LEFT, MAP_RIGHT, MAP_UP, MAZE_HEIGHT, MAZE_WIDTH,
 )
-from zaomeng_hanghai.core.entities import Bullet, Bullets, EnemyList, FallingItems, Player
-from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.game_window import GameWindow, GameWindowError
+from zmxy4_treasure_hunt.voyage.core.entities import Bullet, Bullets, EnemyList, FallingItems, Player
+from zmxy4_treasure_hunt.voyage.core.map import Map
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow, GameWindowError
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent

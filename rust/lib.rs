@@ -244,7 +244,7 @@ fn region_path(
 }
 
 #[pymodule]
-fn _maze_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(region_path, module)?)?;
     Ok(())
 }

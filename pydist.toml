@@ -1,5 +1,5 @@
 # 应用名称。init 默认使用项目根目录名。
-app_name = "自动航海"
+app_name = "造梦西游4寻宝助手"
 
 # 是否显示控制台窗口。图形界面应用可设为 false。
 console = true

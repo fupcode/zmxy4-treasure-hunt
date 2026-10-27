@@ -3,13 +3,13 @@
 import unittest
 from unittest.mock import patch
 
-from zaomeng_hanghai.env import FrameRateCalculator
+from zmxy4_treasure_hunt.voyage.env import FrameRateCalculator
 
 
 class FrameRateTests(unittest.TestCase):
     def test_terminal_reports_only_every_ten_seconds(self):
         calculator = FrameRateCalculator()
-        with patch("zaomeng_hanghai.env.time.perf_counter", side_effect=[i / 10 for i in range(201)]), \
+        with patch("zmxy4_treasure_hunt.voyage.env.time.perf_counter", side_effect=[i / 10 for i in range(201)]), \
              patch("builtins.print") as output:
             for _ in range(100):
                 calculator.trigger(log_to_terminal=True)
@@ -24,7 +24,7 @@ class FrameRateTests(unittest.TestCase):
 
     def test_debug_mode_updates_fps_without_terminal_output(self):
         calculator = FrameRateCalculator()
-        with patch("zaomeng_hanghai.env.time.perf_counter", side_effect=[0, 0.1, 10, 10.2]), \
+        with patch("zmxy4_treasure_hunt.voyage.env.time.perf_counter", side_effect=[0, 0.1, 10, 10.2]), \
              patch("builtins.print") as output:
             calculator.trigger()
             self.assertAlmostEqual(calculator.trigger(), 10)

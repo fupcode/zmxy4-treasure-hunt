@@ -5,12 +5,12 @@ import time
 import cv2
 import numpy as np
 
-from zaomeng_hanghai.game_window import GameWindow
-from zaomeng_hanghai.core.action_manager import ActionManager, click, key_down
-from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
-from zaomeng_hanghai.core.direction import Direction
-from zaomeng_hanghai.core.entities import Bullets, EnemyList, FallingItems, Player
-from zaomeng_hanghai.core.map import Map
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow
+from zmxy4_treasure_hunt.voyage.core.action_manager import ActionManager, click, key_down
+from zmxy4_treasure_hunt.voyage.core.constants import MAZE_HEIGHT, MAZE_WIDTH
+from zmxy4_treasure_hunt.voyage.core.direction import Direction
+from zmxy4_treasure_hunt.voyage.core.entities import Bullets, EnemyList, FallingItems, Player
+from zmxy4_treasure_hunt.voyage.core.map import Map
 
 
 class FrameRateCalculator:

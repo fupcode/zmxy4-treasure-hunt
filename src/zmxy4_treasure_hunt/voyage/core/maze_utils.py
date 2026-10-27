@@ -5,9 +5,9 @@ import math
 from scipy.ndimage import distance_transform_cdt
 
 try:
-    from .._maze_native import region_path as _native_region_path
+    from ..._native import region_path as _native_region_path
 except ModuleNotFoundError as exc:
-    if exc.name != "zaomeng_hanghai._maze_native":
+    if exc.name != "zmxy4_treasure_hunt._native":
         raise
     _native_region_path = None
 

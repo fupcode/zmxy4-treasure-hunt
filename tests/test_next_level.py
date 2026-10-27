@@ -3,19 +3,19 @@
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-from zaomeng_hanghai.core.action_manager import ActionManager
-from zaomeng_hanghai.core.direction import Direction
-from zaomeng_hanghai.core.entities import Enemy
-from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.core.onnx_model import DetectionResult
-from zaomeng_hanghai.env import Env
+from zmxy4_treasure_hunt.voyage.core.action_manager import ActionManager
+from zmxy4_treasure_hunt.voyage.core.direction import Direction
+from zmxy4_treasure_hunt.voyage.core.entities import Enemy
+from zmxy4_treasure_hunt.voyage.core.map import Map
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
+from zmxy4_treasure_hunt.voyage.env import Env
 
 
 class NextLevelTests(unittest.TestCase):
     def make_action_manager(self):
-        self.enterContext(patch("zaomeng_hanghai.core.action_manager.key_down"))
-        self.enterContext(patch("zaomeng_hanghai.core.action_manager.key_up"))
-        self.enterContext(patch("zaomeng_hanghai.core.action_manager.time.sleep"))
+        self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_down"))
+        self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_up"))
+        self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.time.sleep"))
         manager = ActionManager()
         manager.fire = Mock()
         return manager
@@ -68,7 +68,7 @@ class NextLevelTests(unittest.TestCase):
                 env.bullets.__len__.return_value = bullets
                 env.bullets.new_bullets = []
                 env.falling_items = Mock()
-                with patch("zaomeng_hanghai.env.Player"):
+                with patch("zmxy4_treasure_hunt.voyage.env.Player"):
                     self.assertEqual(env.update(), 0)
                 env.fps_calculator.trigger.assert_called_once_with(log_to_terminal=True)
                 env.map.update.assert_not_called()
@@ -106,7 +106,7 @@ class NextLevelTests(unittest.TestCase):
     def test_stop_moving_releases_keys_without_firing(self):
         manager = self.make_action_manager()
         manager.last_direction = Direction.DownLeft
-        with patch("zaomeng_hanghai.core.action_manager.key_up") as key_up:
+        with patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_up") as key_up:
             manager.stop_moving()
         key_up.assert_called_once_with(Direction.DownLeft.value)
         self.assertIsNone(manager.last_direction)

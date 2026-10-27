@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.core import maze_utils
+from zmxy4_treasure_hunt.voyage.core import maze_utils
 
 
 def measure(search):

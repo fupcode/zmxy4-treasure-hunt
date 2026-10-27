@@ -9,7 +9,7 @@ from matplotlib.patches import Rectangle
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from zaomeng_hanghai.core.onnx_model import OnnxModel
+from zmxy4_treasure_hunt.voyage.core.onnx_model import OnnxModel
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent

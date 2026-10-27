@@ -5,17 +5,17 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from zaomeng_hanghai.core.onnx_model import DetectionResult
-from zaomeng_hanghai.game_window import GameWindow
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow
 
 
 class GameWindowImageTests(unittest.TestCase):
 
     def test_winrt_fallback_uses_on_demand_capture(self):
         camera = Mock()
-        with patch("zaomeng_hanghai.game_window.dxcam.create",
+        with patch("zmxy4_treasure_hunt.voyage.game_window.dxcam.create",
                    side_effect=[RuntimeError("DXGI unsupported"), camera]) as create, \
-             patch("zaomeng_hanghai.game_window.OnnxModel"), \
+             patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel"), \
              patch("builtins.print"):
             window = GameWindow()
         self.assertIs(window.camera, camera)
@@ -24,18 +24,18 @@ class GameWindowImageTests(unittest.TestCase):
 
     def test_winrt_failure_is_propagated(self):
         failure = RuntimeError("WinRT unavailable")
-        with patch("zaomeng_hanghai.game_window.dxcam.create", side_effect=[RuntimeError("DXGI unsupported"), failure]), \
+        with patch("zmxy4_treasure_hunt.voyage.game_window.dxcam.create", side_effect=[RuntimeError("DXGI unsupported"), failure]), \
              patch("builtins.print"):
             with self.assertRaises(RuntimeError) as caught:
                 GameWindow()
         self.assertIs(caught.exception, failure)
 
     def test_capture_timeout_and_invalid_region(self):
-        with patch("zaomeng_hanghai.game_window.OnnxModel"):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel"):
             window = GameWindow(capture_enabled=False)
         window.camera = Mock()
         window.camera.grab.return_value = None
-        with patch("zaomeng_hanghai.game_window.time.monotonic", side_effect=[0.0, 5.0]):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.time.monotonic", side_effect=[0.0, 5.0]):
             with self.assertRaisesRegex(TimeoutError, "No screen frame"):
                 window.capture_screen()
         window.camera.grab.side_effect = ValueError("Invalid Region")
@@ -44,13 +44,13 @@ class GameWindowImageTests(unittest.TestCase):
         window.camera.grab.assert_called_with(region=(-1, 0, 5, 5))
 
     def test_capture_region_retries_until_frame_available(self):
-        with patch("zaomeng_hanghai.game_window.OnnxModel"):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel"):
             window = GameWindow(capture_enabled=False)
         image = np.zeros((4, 5, 3), dtype=np.uint8)
         window.camera = Mock()
         window.camera.grab.side_effect = [None, image]
-        with patch("zaomeng_hanghai.game_window.time.monotonic", return_value=0.0), \
-             patch("zaomeng_hanghai.game_window.time.sleep"):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.time.monotonic", return_value=0.0), \
+             patch("zmxy4_treasure_hunt.voyage.game_window.time.sleep"):
             result = window.capture_screen([100, 200, 105, 204])
         self.assertIs(result, image)
         self.assertEqual(window.camera.grab.call_count, 2)
@@ -63,8 +63,8 @@ class GameWindowImageTests(unittest.TestCase):
             "enemy": [box], "player": [], "bullet": [],
             "pao": [], "dan": [], "fan": [], "jia": [],
         })
-        with patch("zaomeng_hanghai.game_window.dxcam.create") as capture, \
-             patch("zaomeng_hanghai.game_window.OnnxModel", return_value=model):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.dxcam.create") as capture, \
+             patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel", return_value=model):
             window = GameWindow(capture_enabled=False)
         capture.assert_not_called()
         image = np.zeros((200, 320, 3), dtype=np.uint8)
@@ -84,7 +84,7 @@ class GameWindowImageTests(unittest.TestCase):
             "enemy": [], "player": [], "bullet": [],
             "pao": [], "dan": [], "fan": [], "jia": [],
         })
-        with patch("zaomeng_hanghai.game_window.OnnxModel", return_value=model):
+        with patch("zmxy4_treasure_hunt.voyage.game_window.OnnxModel", return_value=model):
             window = GameWindow(capture_enabled=False)
         image = np.zeros((200, 320, 3), dtype=np.uint8)
         window.detections = {"enemy": [object()]}

@@ -6,25 +6,25 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.core.entities import Bullet
-from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.env import Env
+from zmxy4_treasure_hunt.voyage.core.entities import Bullet
+from zmxy4_treasure_hunt.voyage.core.map import Map
+from zmxy4_treasure_hunt.voyage.env import Env
 
 
 class RenderConfigTests(unittest.TestCase):
     def test_disabled_skips_window_render_but_keeps_fps_counter(self):
-        with patch("zaomeng_hanghai.env.GameWindow") as window_class, \
-             patch("zaomeng_hanghai.env.FrameRateCalculator") as fps_class, \
-             patch("zaomeng_hanghai.env.click") as click, \
-             patch("zaomeng_hanghai.env.cv2.imshow") as imshow, \
-             patch("zaomeng_hanghai.env.cv2.moveWindow") as move_window, \
-             patch("zaomeng_hanghai.env.cv2.setWindowProperty") as set_property, \
-             patch("zaomeng_hanghai.env.cv2.waitKey") as wait_key:
+        with patch("zmxy4_treasure_hunt.voyage.env.GameWindow") as window_class, \
+             patch("zmxy4_treasure_hunt.voyage.env.FrameRateCalculator") as fps_class, \
+             patch("zmxy4_treasure_hunt.voyage.env.click") as click, \
+             patch("zmxy4_treasure_hunt.voyage.env.cv2.imshow") as imshow, \
+             patch("zmxy4_treasure_hunt.voyage.env.cv2.moveWindow") as move_window, \
+             patch("zmxy4_treasure_hunt.voyage.env.cv2.setWindowProperty") as set_property, \
+             patch("zmxy4_treasure_hunt.voyage.env.cv2.waitKey") as wait_key:
             window_class.return_value.window_box = (0, 0, 800, 600)
             env = Env(render_enabled=False)
             self.assertFalse(env.map.render_enabled)
             env.init_window()
-            with patch("zaomeng_hanghai.env.np.zeros", side_effect=AssertionError("不应创建渲染画布")):
+            with patch("zmxy4_treasure_hunt.voyage.env.np.zeros", side_effect=AssertionError("不应创建渲染画布")):
                 env.render([(1, 1), (2, 2)])
             window_class.return_value.init_window.assert_called_once_with(None)
             click.assert_called_once_with(790, 590)
@@ -41,7 +41,7 @@ class RenderConfigTests(unittest.TestCase):
         player = SimpleNamespace(x=100, y=100)
         bullets = [Bullet((0.6, 0.6, 2))]
         expected = enabled.get_flee_maze(player, bullets, [])
-        with patch("zaomeng_hanghai.core.map.np.stack", side_effect=AssertionError("不应生成调试图")):
+        with patch("zmxy4_treasure_hunt.voyage.core.map.np.stack", side_effect=AssertionError("不应生成调试图")):
             actual = disabled.get_flee_maze(player, bullets, [])
         self.assertIsNotNone(enabled.debug_image)
         self.assertIsNone(disabled.debug_image)

@@ -5,9 +5,9 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.constants import FIRE_X_RANGE, FIRE_Y_RANGE, MAZE_HEIGHT, MAZE_WIDTH, VISION
-from zaomeng_hanghai.core.entities import Enemy
-from zaomeng_hanghai.core.map import Map
+from zmxy4_treasure_hunt.voyage.core.constants import FIRE_X_RANGE, FIRE_Y_RANGE, MAZE_HEIGHT, MAZE_WIDTH, VISION
+from zmxy4_treasure_hunt.voyage.core.entities import Enemy
+from zmxy4_treasure_hunt.voyage.core.map import Map
 
 
 class FireAlignmentTests(unittest.TestCase):

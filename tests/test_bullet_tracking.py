@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.entities import Bullet, Bullets
+from zmxy4_treasure_hunt.voyage.core.entities import Bullet, Bullets
 
 
 class BulletTrackingTests(unittest.TestCase):

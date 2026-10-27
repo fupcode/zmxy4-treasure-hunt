@@ -1,4 +1,8 @@
-# 造梦航海
+# 造梦西游4寻宝助手
+
+项目发行包名为 `zmxy4-treasure-hunt`，Python 导入包为 `zmxy4_treasure_hunt`。
+航海寻宝位于 `voyage` 子包，后续迷宫寻宝使用 `maze` 子包。
+共用 Rust 原生扩展为 `zmxy4_treasure_hunt._native`。
 
 基于 YOLO 目标识别和规则寻路实现自动航海。运行方式、状态码和调试说明见
 [环境文档](docs/env.md)，目标识别模型训练见 [YOLO 文档](yolo/README.md)。
@@ -17,7 +21,7 @@ $env:VIRTUAL_ENV = Join-Path $PWD '.venv'
 验证扩展是否启用：
 
 ```powershell
-.venv/Scripts/python.exe -c "from zaomeng_hanghai.core.maze_utils import _native_region_path; print(_native_region_path is not None)"
+.venv/Scripts/python.exe -c "from zmxy4_treasure_hunt.voyage.core.maze_utils import _native_region_path; print(_native_region_path is not None)"
 .venv/Scripts/python.exe -m unittest discover -s tests -p 'test_maze*.py'
 .venv/Scripts/python.exe tests/benchmark_maze.py
 ```

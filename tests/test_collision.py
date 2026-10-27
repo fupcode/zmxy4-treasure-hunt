@@ -5,9 +5,9 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.constants import MAZE_HEIGHT, MAZE_WIDTH
-from zaomeng_hanghai.core.direction import move_list
-from zaomeng_hanghai.core.map import Map
+from zmxy4_treasure_hunt.voyage.core.constants import MAZE_HEIGHT, MAZE_WIDTH
+from zmxy4_treasure_hunt.voyage.core.direction import move_list
+from zmxy4_treasure_hunt.voyage.core.map import Map
 
 
 def empty_map():

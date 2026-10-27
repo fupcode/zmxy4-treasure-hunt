@@ -9,13 +9,13 @@
 也可以直接运行环境入口（显示 Monitor）：
 
 ```powershell
-.\.venv\Scripts\python.exe -m zaomeng_hanghai.env 3
+.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.voyage.env 3
 ```
 
 只读调试显示感知和建议路径，手动操作游戏，Ctrl+C 退出：
 
 ```powershell
-.\.venv\Scripts\python.exe -m zaomeng_hanghai.env --debug --map-index 0 --level 1
+.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.voyage.env --debug --map-index 0 --level 1
 ```
 
 ## 状态码
@@ -39,7 +39,7 @@
 | 同一关战斗 | 60 秒，`combat_timeout` | `-3` |
 
 ```python
-from zaomeng_hanghai.env import Env
+from zmxy4_treasure_hunt.voyage.env import Env
 
 env = Env(timeout=5, stay_timeout=60, combat_timeout=60)
 ```

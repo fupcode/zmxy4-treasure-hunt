@@ -6,8 +6,8 @@ import dxcam
 import win32api
 import win32con
 
-from zaomeng_hanghai.core.onnx_model import OnnxModel, DetectionResult
-from zaomeng_hanghai.core.action_manager import key_up_all
+from zmxy4_treasure_hunt.voyage.core.onnx_model import OnnxModel, DetectionResult
+from zmxy4_treasure_hunt.voyage.core.action_manager import key_up_all
 
 
 def set_cursor_pos(x, y):

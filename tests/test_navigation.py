@@ -6,14 +6,14 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from zaomeng_hanghai.core.map import Map
-from zaomeng_hanghai.core.constants import (
+from zmxy4_treasure_hunt.voyage.core.map import Map
+from zmxy4_treasure_hunt.voyage.core.constants import (
     MAZE_HEIGHT, MAZE_WIDTH, BULLET_AVOID_HEIGHT, BULLET_AVOID_WIDTH,
     FIRE_X_RANGE, FIRE_Y_RANGE, HIT_HEIGHT, HIT_WIDTH,
 )
-from zaomeng_hanghai.core.entities import Bullets
-from zaomeng_hanghai.core.direction import Direction
-from zaomeng_hanghai.core.maze_utils import (
+from zmxy4_treasure_hunt.voyage.core.entities import Bullets
+from zmxy4_treasure_hunt.voyage.core.direction import Direction
+from zmxy4_treasure_hunt.voyage.core.maze_utils import (
     find_best_path_to_region,
     find_nearest_passable_path,
 )
@@ -138,7 +138,7 @@ class NavigationTests(unittest.TestCase):
                     peek = np.ones(shape) if local_peek else empty
                     game_map.flee_mazes = (maze, np.ones(shape), bullets, enemies,
                                            peek, empty, empty, empty)
-                    with patch("zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region", return_value=[]) as search:
+                    with patch("zmxy4_treasure_hunt.voyage.core.map.maze_utils.find_best_path_to_region", return_value=[]) as search:
                         game_map.get_shot_place_direction(SimpleNamespace(x=x, y=y))
                     expected = maze | (((bullets + enemies) > 0)
                                        & (abs(xx - x) <= 10) & (abs(yy - y) <= 10))
@@ -163,7 +163,7 @@ class NavigationTests(unittest.TestCase):
             vision[:, :15] = 1
             game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
                                    vision, empty, empty, global_targets)
-            with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
+            with patch('zmxy4_treasure_hunt.voyage.core.map.maze_utils.find_best_path_to_region',
                        return_value=[]) as search:
                 result = game_map.get_shot_place_direction(SimpleNamespace(x=5, y=10))
             self.assertEqual(result, (None, [], 3))
@@ -181,7 +181,7 @@ class NavigationTests(unittest.TestCase):
         vision[5:15, 10:15] = 2
         game_map.flee_mazes = (empty.astype(bool), np.ones(shape), empty, empty,
                                vision, empty, empty, targets)
-        with patch('zaomeng_hanghai.core.map.maze_utils.find_best_path_to_region',
+        with patch('zmxy4_treasure_hunt.voyage.core.map.maze_utils.find_best_path_to_region',
                    wraps=find_best_path_to_region) as search:
             direction, path, mode = game_map.get_shot_place_direction(
                 SimpleNamespace(x=5, y=10))

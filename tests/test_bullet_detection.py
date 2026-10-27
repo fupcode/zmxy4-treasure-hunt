@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from zaomeng_hanghai.core.onnx_model import DetectionResult
-from zaomeng_hanghai.game_window import GameWindow
+from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow
 
 
 class BulletDetectionTests(unittest.TestCase):

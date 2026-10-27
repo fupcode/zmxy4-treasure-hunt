@@ -1,5 +1,5 @@
 [project]
-name = "zaomeng-hanghai"
+name = "zmxy4-treasure-hunt"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -29,7 +29,7 @@ build-backend = "maturin"
 
 [tool.maturin]
 python-source = "src"
-module-name = "zaomeng_hanghai._maze_native"
+module-name = "zmxy4_treasure_hunt._native"
 features = ["pyo3/extension-module"]
 exclude = ["**/*.pdb"]
 

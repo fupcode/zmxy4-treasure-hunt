@@ -5,15 +5,15 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.game_window import GameWindow, GameWindowError
+from zmxy4_treasure_hunt.voyage.game_window import GameWindow, GameWindowError
 
 
 class CoordinateTests(unittest.TestCase):
 
     def test_uninitialized_geometry_rejects_mouse_actions(self):
         window = GameWindow.__new__(GameWindow)
-        with patch("zaomeng_hanghai.game_window.click") as click, \
-             patch("zaomeng_hanghai.game_window.set_cursor_pos") as move:
+        with patch("zmxy4_treasure_hunt.voyage.game_window.click") as click, \
+             patch("zmxy4_treasure_hunt.voyage.game_window.set_cursor_pos") as move:
             for box, size in ((None, None), ((10, 20, 110, 120), None),
                               (None, (100, 100))):
                 window.window_box, window.window_size = box, size
@@ -31,8 +31,8 @@ class CoordinateTests(unittest.TestCase):
         np.testing.assert_array_equal(crop, image[11:21, 11:21])
         window.window_box = (10, 20, 110, 120)
         window.window_size = (100, 100)
-        with patch("zaomeng_hanghai.game_window.click") as click, \
-             patch("zaomeng_hanghai.game_window.set_cursor_pos") as move:
+        with patch("zmxy4_treasure_hunt.voyage.game_window.click") as click, \
+             patch("zmxy4_treasure_hunt.voyage.game_window.set_cursor_pos") as move:
             window.click_normal(0.106, 0.207)
             window.set_cursor_pos_normal(0.106, 0.207)
         click.assert_called_once_with(21, 41)

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.core import maze_utils
+from zmxy4_treasure_hunt.voyage.core import maze_utils
 
 
 @unittest.skipUnless(maze_utils._native_region_path is not None, 'build the PyO3 extension first')

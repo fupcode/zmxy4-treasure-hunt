@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from zaomeng_hanghai.core.onnx_model import OnnxModel
+from zmxy4_treasure_hunt.voyage.core.onnx_model import OnnxModel
 
 
 class EndToEndTests(unittest.TestCase):

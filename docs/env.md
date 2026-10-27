@@ -1,22 +1,26 @@
 # 自动航海环境
 
-运行主程序后选择游戏窗口并输入需要胜利的次数：
+在项目根目录运行主程序，交互选择航海后输入需要胜利的次数（默认 3）：
 
 ```powershell
 .\.venv\Scripts\python.exe main.py
 ```
 
-也可以直接运行环境入口（显示 Monitor）：
+也可以直接指定次数启动航海（显示 Monitor），其余参数由航海子命令解析：
 
 ```powershell
-.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.voyage.env 3
+.\.venv\Scripts\python.exe main.py voyage 3
 ```
 
 只读调试显示感知和建议路径，手动操作游戏，Ctrl+C 退出：
 
 ```powershell
-.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.voyage.env --debug --map-index 0 --level 1
+.\.venv\Scripts\python.exe main.py voyage --debug --map-index 0 --level 1
 ```
+
+`python main.py voyage --help` 查看航海参数。也可以通过
+`python -m zmxy4_treasure_hunt.voyage.cli` 启动，参数相同。
+`voyage/cli.py` 负责参数解析与启动，`voyage/env.py` 仅提供游戏环境和自动航海流程。
 
 ## 状态码
 

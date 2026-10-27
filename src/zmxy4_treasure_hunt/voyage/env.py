@@ -442,37 +442,3 @@ def auto_loop(voyager: Voyager, target=3):
             success_count += 1
         time.sleep(1)
         voyager.game_window.recover(status_code)
-
-
-if __name__ == "__main__":
-    import argparse
-    from pathlib import Path
-    import os
-
-    PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
-    os.chdir(PROJECT_DIR)
-
-    parser = argparse.ArgumentParser(description="自动战斗或只读调试窗口")
-    parser.add_argument("target", nargs="?", type=int, default=3)
-    parser.add_argument("--debug", action="store_true", help="只显示感知和建议路径，不发送鼠标或键盘指令")
-    parser.add_argument("--map-index", type=int, choices=range(7), help="调试时指定大地图编号，默认从画面识别")
-    parser.add_argument("--level", type=int, choices=range(5), default=0, help="调试开始时所在关卡，默认 0")
-    args = parser.parse_args()
-
-    voyager = Voyager(render_enabled=True)
-    voyager.init_window(focus_game=not args.debug)
-    if args.debug:
-        map_index = args.map_index if args.map_index is not None else voyager.game_window.get_map_index_at_start()
-        voyager.map.reset(map_index)
-        for _ in range(args.level):
-            voyager.map.next_level()
-        print("只读调试：请手动操作游戏，Ctrl+C 退出。")
-        try:
-            while voyager.debug_step() in (0, -3):
-                pass
-        except KeyboardInterrupt:
-            pass
-        finally:
-            cv2.destroyWindow("Monitor")
-    else:
-        auto_loop(voyager, args.target)

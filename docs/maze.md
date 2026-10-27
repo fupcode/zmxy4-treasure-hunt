@@ -4,7 +4,7 @@
 
 ```powershell
 $env:PYTHONPATH = 'src'
-.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.maze.ft
+.\.venv\Scripts\python.exe main.py maze
 ```
 
 默认不显示监控窗口、不保存诊断图片。终端按 Ctrl+C 退出，退出时松开 WASD 并释放截图设备。
@@ -12,8 +12,8 @@ $env:PYTHONPATH = 'src'
 调试模式仍会执行正常的游戏操作。
 
 ```powershell
-.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.maze.ft --debug
-# exe：.\dist\maze\maze-hunt.exe --debug
+.\.venv\Scripts\python.exe main.py maze --debug
+# exe：.\dist\maze\maze-hunt.exe maze --debug
 ```
 
 截图使用 DXcam 的 BGR 输出，DXGI 初始化失败时尝试 WinRT。目前使用主显示器；
@@ -21,7 +21,7 @@ $env:PYTHONPATH = 'src'
 启动时根据金色外框、矩形四角和暗色直边自动定位游戏区域。可调整循环间隔：
 
 ```powershell
-.\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.maze.ft --interval 0.05
+.\.venv\Scripts\python.exe main.py maze --interval 0.05
 ```
 
 `--interval` 是包含处理时间的最小循环间隔，默认 0.05 秒；截图单次等待上限为 5 秒。
@@ -34,7 +34,8 @@ $env:PYTHONPATH = 'src'
 
 | 目录/入口 | 职责 |
 | --- | --- |
-| `ft.py` | 命令行入口和自动运行流程 |
+| `cli.py` | 命令行参数解析与启动 |
+| `ft.py` | `FindTreasure` 自动运行流程 |
 | `runtime/` | `capture.py` 负责截图，`controls.py` 负责 Windows 输入 |
 | `vision/` | `scene.py` 识别人物和墙壁，`ring.py` 拟合黑圈，`viewport.py` 定位视区，`mask.py` 反算遮罩 |
 | `navigation/` | `maze.py` 定位与寻路，`grid.py` 重建局部格网，`templates.py` 加载每周地图 |
@@ -42,11 +43,11 @@ $env:PYTHONPATH = 'src'
 | `maps/`、`assets/` | 内置地图 JSON 和原始 Alpha 遮罩素材 |
 
 `maze.vision` 和 `maze.navigation` 的 `__init__.py` 提供公开接口；具体实现放在子模块中。
-启动方式仍为 `python -m zmxy4_treasure_hunt.maze.ft`。
+统一入口为 `python main.py maze`，也可使用 `python -m zmxy4_treasure_hunt.maze.cli`。
 
 识别和导航不创建窗口或发送按键。`FindTreasure.step()` 执行一帧；
 `NavigationResult` 包含用于显示的地图、路径、移动建议和接近宝箱标记。
-调用者应在完成使用后调用 `FindTreasure.close()`；`main()` 会自动清理。
+调用者应在完成使用后调用 `FindTreasure.close()`；CLI 启动的主循环会自动清理。
 `FindTreasure` 从 `ft` 导入，`Graph` 和 `Maze` 从 `navigation` 导入。
 `Maze` 为纯规划接口，不隐式发送按键或以 `None` 表示接近宝箱。
 
@@ -122,14 +123,15 @@ $env:PYTHONPATH = 'src'
 地图和遮罩都通过 `importlib.resources` 读取，不依赖启动目录，不需要在 exe 旁另放 `maps/`。
 数据是只读模板，运行中只修改内存。
 
-独立入口为项目根目录 `maze_main.py`。在项目根目录执行：
+打包入口为项目根目录 `main.py`，生成的程序也通过 `maze`、`voyage` 子命令启动。在项目根目录执行：
 
 ```powershell
 uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze maze_main.py
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze main.py
 ```
 
-生成 `dist/maze/maze-hunt.exe`。将 `--onefile` 换成 `--onedir` 可生成目录版。
+生成 `dist/maze/maze-hunt.exe`，使用 `maze-hunt.exe maze` 启动迷宫，或不带参数交互选择。
+将 `--onefile` 换成 `--onedir` 可生成目录版。
 项目安装后的包元数据也会注册 hook；上述命令显式指定 hook 目录，方便直接从源码打包。
 该 hook 只收集七张地图 JSON 和遮罩 PNG。机制参考 [PyInstaller 官方 hook 文档](https://pyinstaller.org/en/stable/hooks.html#providing-pyinstaller-hooks-with-your-package)。
 

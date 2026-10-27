@@ -4,6 +4,19 @@
 航海寻宝位于 `voyage` 子包，迷宫寻宝位于 `maze` 子包，运行与模块说明见 [迷宫文档](docs/maze.md)。
 共用 Rust 原生扩展为 `zmxy4_treasure_hunt._native`。
 
+在项目根目录使用统一入口；不带参数时交互选择航海或冒险，选择航海后询问胜利次数（默认 3）：
+
+```powershell
+python main.py
+python main.py voyage 3
+python main.py maze
+python main.py maze --debug --interval 0.05
+python main.py voyage --debug --map-index 0 --level 1
+```
+
+`maze`、`voyage` 后的参数原样交给对应子命令；使用 `python main.py --help` 查看入口帮助，
+使用 `python main.py maze --help` 或 `python main.py voyage --help` 查看各自参数。
+
 基于 YOLO 目标识别和规则寻路实现自动航海。运行方式、状态码和调试说明见
 [环境文档](docs/env.md)，目标识别模型训练见 [YOLO 文档](yolo/README.md)。
 

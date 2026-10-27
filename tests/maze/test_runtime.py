@@ -297,7 +297,7 @@ class RunnerTests(unittest.TestCase):
         render.assert_called_once()
 
     def test_cli_debug_is_opt_in(self):
-        from zmxy4_treasure_hunt.maze.ft import main
+        from zmxy4_treasure_hunt.maze.cli import main
 
         for arguments, expected in (([], False), (['--debug'], True)):
             with self.subTest(arguments=arguments), patch('zmxy4_treasure_hunt.maze.ft.FindTreasure') as runner:

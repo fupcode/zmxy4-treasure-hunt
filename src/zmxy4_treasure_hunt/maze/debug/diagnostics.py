@@ -8,8 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .map_templates import load_weekday_map
-from .navigation import Maze
+from ..navigation import Maze, load_weekday_map
 
 
 def _save_image(path, image):
@@ -90,6 +89,8 @@ def export_alignment_debug(maze, template, error, *, raw=None, frame=None, chara
             cv2.line(overlay, (0, int(y)), (overlay.shape[1] - 1, int(y)), (255, 100, 0), 1)
         if character:
             cv2.circle(overlay, (character.x, character.y), character.radius, (0, 0, 255), 2)
+            if character.ring_radius is not None:
+                cv2.circle(overlay, (character.x, character.y), round(character.ring_radius), (0, 255, 255), 1)
         _save_image(output / "grid_overlay.png", overlay)
     if observation is not None:
         _save_image(output / "walls.png", observation.image)

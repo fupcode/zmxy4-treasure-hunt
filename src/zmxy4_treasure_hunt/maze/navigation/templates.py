@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import maps
+from .. import maps
 
 CHINA_TIME = timezone(timedelta(hours=8))
 

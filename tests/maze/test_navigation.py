@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
+from zmxy4_treasure_hunt.maze.navigation.templates import load_weekday_map
 from zmxy4_treasure_hunt.maze.navigation import Graph, MapAlignmentError, Maze
 
 

@@ -36,7 +36,7 @@
 读取当天地图：
 
 ```python
-from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
+from zmxy4_treasure_hunt.maze.navigation import load_weekday_map
 
 template = load_weekday_map()  # 北京时间，星期日为 0
 maze = template.cells.copy()  # 本局可变状态；原模板只读

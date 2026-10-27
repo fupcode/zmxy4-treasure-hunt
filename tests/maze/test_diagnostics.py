@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.diagnostics import export_alignment_debug, rank_weekdays
-from zmxy4_treasure_hunt.maze.map_templates import MapTemplate, load_weekday_map
-from zmxy4_treasure_hunt.maze.mask import RestoredFrame
+from zmxy4_treasure_hunt.maze.debug.diagnostics import export_alignment_debug, rank_weekdays
+from zmxy4_treasure_hunt.maze.navigation.templates import MapTemplate, load_weekday_map
+from zmxy4_treasure_hunt.maze.vision.mask import RestoredFrame
 from zmxy4_treasure_hunt.maze.navigation import MapAlignmentError, Maze
 
 

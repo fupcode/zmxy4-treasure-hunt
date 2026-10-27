@@ -4,9 +4,9 @@ import unittest
 import cv2
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.grid import Grid
-from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
-from zmxy4_treasure_hunt.maze.mask import MaskRestorer
+from zmxy4_treasure_hunt.maze.navigation.grid import Grid
+from zmxy4_treasure_hunt.maze.navigation.templates import load_weekday_map
+from zmxy4_treasure_hunt.maze.vision.mask import MaskRestorer
 from zmxy4_treasure_hunt.maze.navigation import Maze
 from zmxy4_treasure_hunt.maze.vision import detect_walls, locate_character, locate_game
 

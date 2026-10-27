@@ -32,17 +32,17 @@ $env:PYTHONPATH = 'src'
 
 ## 模块职责
 
-| 文件 | 职责 |
+| 目录/入口 | 职责 |
 | --- | --- |
-| `ft.py` | 命令行入口、截图 → 识别 → 规划 → 执行、过关与监控窗口 |
-| `capture.py` | BGR 截图、超时、后端回退和释放 |
-| `controls.py` | 鼠标点击、方向键变化和统一松键 |
-| `vision.py` | 人物、宝箱、墙壁线条及窗口区域识别 |
-| `viewport.py` | 金色外框颜色、四角和暗色直边联合定位视区 |
-| `mask.py` | 原始黑色 Alpha 遮罩反算、缓存增益与可信像素区域 |
-| `grid.py` | 格距标定、补线、局部格网和人物偏移 |
-| `map_templates.py` | 按北京时间选择星期、读取并校验完整地图 |
-| `navigation.py` | 在完整地图中定位、BFS 宝箱最短路径和移动建议 |
+| `ft.py` | 命令行入口和自动运行流程 |
+| `runtime/` | `capture.py` 负责截图，`controls.py` 负责 Windows 输入 |
+| `vision/` | `scene.py` 识别人物和墙壁，`ring.py` 拟合黑圈，`viewport.py` 定位视区，`mask.py` 反算遮罩 |
+| `navigation/` | `maze.py` 定位与寻路，`grid.py` 重建局部格网，`templates.py` 加载每周地图 |
+| `debug/` | `diagnostics.py` 导出失败现场、比较七张地图 |
+| `maps/`、`assets/` | 内置地图 JSON 和原始 Alpha 遮罩素材 |
+
+`maze.vision` 和 `maze.navigation` 的 `__init__.py` 提供公开接口；具体实现放在子模块中。
+启动方式仍为 `python -m zmxy4_treasure_hunt.maze.ft`。
 
 识别和导航不创建窗口或发送按键。`FindTreasure.step()` 执行一帧；
 `NavigationResult` 包含用于显示的地图、路径、移动建议和接近宝箱标记。
@@ -50,7 +50,7 @@ $env:PYTHONPATH = 'src'
 `FindTreasure` 从 `ft` 导入，`Graph` 和 `Maze` 从 `navigation` 导入。
 `Maze` 为纯规划接口，不隐式发送按键或以 `None` 表示接近宝箱。
 
-人物起点在程序中初始化为 `(1, 1)`，不从地图文件读取。人物黑色特征通过凸包定位，墙线用于标定格距。
+人物起点在程序中初始化为 `(1, 1)`，不从地图文件读取。人物通过周围可见的黑色圆弧定位，墙线用于标定格距。
 首帧根据起点和画面中的人物格确定视图原点，并用完整地图校验；后续帧在上一视图原点附近横纵各 ±2 格内匹配，兼容摄像机缓动和首条可见格线变化。
 宝箱是否可见不会改变完整地图中的候选位置，只有触发假宝箱后才移除本局目标。
 仅 `--debug` 模式显示完整地图和实时人物坐标。
@@ -92,6 +92,18 @@ $env:PYTHONPATH = 'src'
 
 ## 离线回归
 
+四个人物样例的黑圈识别鲁棒性可单独测试：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 tools/check_character_robustness.py
+```
+
+输入为已裁剪的 `images/maze/ch2.png`、`ch5.png`、`ch6.png`、`ch7.png`，每张测试 40 组：
+重点覆盖 0.25～2 倍等比例缩放及多种缩放插值；另覆盖亮度、黑电平、Gamma、JPEG、噪声和遮罩错位，不添加额外模糊。依据人工人物标注，检查中心误差、
+人物掩膜覆盖率和半径；不是仅检查识别函数是否返回坐标。
+输出在 `runs/maze-character-check/`，包括 JSON/Markdown 报告及原图识别标注。
+返回码 1 表示存在未通过的鲁棒性样例；不修改识别算法、不控制游戏、不构建 exe。
+
 ```powershell
 $env:PYTHONPATH = 'src'
 .\.venv\Scripts\python.exe -m unittest discover -s tests/maze -v
@@ -129,7 +141,7 @@ uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
 以下离线诊断工具由用户主动运行，始终输出诊断结果，不受自动程序的 `--debug` 开关影响。
 
 - `report.json`：当前星期、人物像素坐标、历史全局位置、移动方向、格距、候选拒绝原因及七张地图评分。
-- `grid_overlay.png`：恢复图上的格网线和人物圆，检查线条是否落在墙边、人物是否识别正确。
+- `grid_overlay.png`：恢复图上的格网线、黄色黑圈拟合和红色人物掩膜，检查墙边、圆心和掩膜覆盖是否正确。
 - `raw.png`、`restored.png`、`valid_pixels.png`、`walls.png`：分辨裁剪、遮罩和墙线识别问题。
 - `comparison.png`：左侧为当前观测，右侧为模板对应区域；红框是墙/通路不一致或额外宝箱的位置。
 - `observed.png`：灰色格表示本帧不可观测，不是地图墙壁。
@@ -164,3 +176,10 @@ uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
 或边缘格线显隐导致视图索引改变时漏掉正确位置。
 现在跟踪候选始终覆盖上一原点附近的双轴偏移，仍按边界、奇偶、人物可通行性和 `0.88` 阈值筛选，
 不扩大为全图重定位，也不自动改变星期地图。
+
+人物定位不再使用精确纯黑像素的合并凸包。`vision/ring.py` 使用灰度梯度和近黑掩膜提出圆环候选，
+辅以连通圆弧候选，在遮挡时通过可见弧段拟合圆心和半径。
+半径范围随视区缩放；候选需满足环外亮度反差、径向梯度方向和圆周半径一致性，
+排除墙角及宝箱纹理。不同位置存在同样可信的圆环时拒绝猜测。
+圆心用于导航，约两倍黑圈半径的掩膜用于排除冠饰、头发和头像对墙线识别的干扰。
+只有少量黑点、圆弧过少或不可信区域遮挡过多时仍会停止识别。

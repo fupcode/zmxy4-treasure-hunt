@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from .viewport import locate_viewport
+from .ring import find_character_ring
 
 
 class DetectionError(ValueError):
@@ -17,6 +18,7 @@ class Character:
     x: int
     y: int
     radius: int
+    ring_radius: float | None = None
 
 
 @dataclass
@@ -29,24 +31,12 @@ class WallObservation:
 
 
 def locate_character(image, valid_pixels=None):
-    mask = cv2.inRange(image, (0, 0, 0), (0, 0, 0))
-    if valid_pixels is not None:
-        mask[~valid_pixels] = 0
-    opening = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    opening[:20, :] = opening[-20:, :] = 0
-    opening[:, :20] = opening[:, -20:] = 0
-    contours, _ = cv2.findContours(opening, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        raise DetectionError("未找到人物的黑色定位特征")
-    # 保留原先合并黑色特征、求凸包的策略；用两倍半径覆盖人物遮挡区域。
-    hull = cv2.convexHull(np.vstack(contours))
-    moments = cv2.moments(hull)
-    if moments["m00"] == 0:
-        raise DetectionError("人物定位特征面积为零")
-    x = round(moments["m10"] / moments["m00"])
-    y = round(moments["m01"] / moments["m00"])
-    _, radius = cv2.minEnclosingCircle(hull)
-    return Character(x, y, max(1, int(np.ceil(radius * 2))))
+    ring = find_character_ring(image, valid_pixels)
+    if ring is None:
+        raise DetectionError("未找到唯一且有足够可见圆弧支持的人物黑圈")
+    x, y, radius, _ = ring
+    # 定位使用圆心；墙线识别使用更大的掩膜，覆盖突出黑圈的头发、冠饰。
+    return Character(round(x), round(y), max(1, int(np.ceil(radius * 2))), radius)
 
 
 def locate_game(image):

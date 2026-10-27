@@ -6,7 +6,7 @@ import unittest
 import cv2
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
+from zmxy4_treasure_hunt.maze.navigation.templates import load_weekday_map
 from zmxy4_treasure_hunt.maze.navigation import Maze
 from zmxy4_treasure_hunt.maze.vision import Character, detect_walls
 

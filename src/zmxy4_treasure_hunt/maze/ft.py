@@ -7,12 +7,11 @@ import time
 import cv2
 import numpy as np
 
-from .capture import ScreenCapture
-from .controls import MovementController
-from .diagnostics import export_alignment_debug
-from .map_templates import load_weekday_map
-from .mask import MaskRestorer
-from .navigation import Maze
+from .runtime.capture import ScreenCapture
+from .runtime.controls import MovementController
+from .debug.diagnostics import export_alignment_debug
+from .vision.mask import MaskRestorer
+from .navigation import Maze, load_weekday_map
 from .vision import detect_walls, locate_character, locate_game
 
 WINDOW_NAME = "Monitoring Window"

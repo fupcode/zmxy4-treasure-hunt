@@ -10,7 +10,7 @@ import numpy as np
 
 from zmxy4_treasure_hunt.maze import maps
 from zmxy4_treasure_hunt.maze.navigation import Graph
-from zmxy4_treasure_hunt.maze.map_templates import current_weekday, load_weekday_map
+from zmxy4_treasure_hunt.maze.navigation.templates import current_weekday, load_weekday_map
 
 MAPS = files(maps)
 
@@ -71,7 +71,7 @@ class MapTemplateTests(unittest.TestCase):
         self.assertEqual(current_weekday(date(2026, 10, 31)), 6)
         for weekday in range(7):
             with self.subTest(weekday=weekday), patch(
-                    'zmxy4_treasure_hunt.maze.map_templates.current_weekday', return_value=weekday):
+                    'zmxy4_treasure_hunt.maze.navigation.templates.current_weekday', return_value=weekday):
                 template = load_weekday_map()
                 self.assertEqual(template.weekday, weekday)
                 self.assertFalse(template.cells.flags.writeable)

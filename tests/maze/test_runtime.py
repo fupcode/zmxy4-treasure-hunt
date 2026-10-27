@@ -3,9 +3,9 @@ from unittest.mock import Mock, call, patch
 
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.capture import ScreenCapture
-from zmxy4_treasure_hunt.maze.map_templates import MapTemplate
-from zmxy4_treasure_hunt.maze.controls import MovementController
+from zmxy4_treasure_hunt.maze.runtime.capture import ScreenCapture
+from zmxy4_treasure_hunt.maze.navigation.templates import MapTemplate
+from zmxy4_treasure_hunt.maze.runtime.controls import MovementController
 from zmxy4_treasure_hunt.maze.navigation import MapAlignmentError, NavigationResult
 from zmxy4_treasure_hunt.maze.ft import FindTreasure
 from zmxy4_treasure_hunt.maze.vision import Character, DetectionError, WallObservation
@@ -18,7 +18,7 @@ class CaptureTests(unittest.TestCase):
         frame[..., 0] = 200
         camera.grab.side_effect = [None, frame]
         capture = ScreenCapture(camera)
-        with patch('zmxy4_treasure_hunt.maze.capture.time.sleep'):
+        with patch('zmxy4_treasure_hunt.maze.runtime.capture.time.sleep'):
             self.assertIs(capture.grab((10, 20, 30, 30)), frame)
         camera.grab.assert_called_with(region=(10, 20, 30, 30), new_frame_only=False)
 
@@ -26,7 +26,7 @@ class CaptureTests(unittest.TestCase):
         camera = Mock()
         camera.grab.return_value = None
         capture = ScreenCapture(camera)
-        with patch('zmxy4_treasure_hunt.maze.capture.time.monotonic', side_effect=[0, 5]):
+        with patch('zmxy4_treasure_hunt.maze.runtime.capture.time.monotonic', side_effect=[0, 5]):
             with self.assertRaises(TimeoutError):
                 capture.grab()
         capture.close()
@@ -47,7 +47,7 @@ class CaptureTests(unittest.TestCase):
 class ControllerTests(unittest.TestCase):
     def test_unchanged_keys_are_not_repeated(self):
         controller = MovementController()
-        with patch('zmxy4_treasure_hunt.maze.controls.key_down') as down, patch('zmxy4_treasure_hunt.maze.controls.key_up') as up:
+        with patch('zmxy4_treasure_hunt.maze.runtime.controls.key_down') as down, patch('zmxy4_treasure_hunt.maze.runtime.controls.key_up') as up:
             controller.apply('WD')
             controller.apply('WD')
             self.assertEqual(down.call_count, 2)
@@ -59,14 +59,14 @@ class ControllerTests(unittest.TestCase):
 
     def test_stop_attempts_every_key_even_when_one_release_fails(self):
         controller = MovementController()
-        with patch('zmxy4_treasure_hunt.maze.controls.key_up', side_effect=[OSError('input failed'), None, None, None]) as up:
+        with patch('zmxy4_treasure_hunt.maze.runtime.controls.key_up', side_effect=[OSError('input failed'), None, None, None]) as up:
             with self.assertRaises(OSError):
                 controller.stop()
         self.assertEqual(up.call_args_list, [call(char) for char in 'WASD'])
 
     def test_invalid_movements_send_no_events(self):
         controller = MovementController()
-        with patch('zmxy4_treasure_hunt.maze.controls.key_down') as down:
+        with patch('zmxy4_treasure_hunt.maze.runtime.controls.key_down') as down:
             with self.assertRaises(ValueError):
                 controller.apply('Q')
         down.assert_not_called()

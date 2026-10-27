@@ -4,7 +4,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.grid import Grid, GridDetectionError
+from zmxy4_treasure_hunt.maze.navigation.grid import Grid, GridDetectionError
 from zmxy4_treasure_hunt.maze.vision import Character, DetectionError, detect_walls, locate_character, locate_game
 
 

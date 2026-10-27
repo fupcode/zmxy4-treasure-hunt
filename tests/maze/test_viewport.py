@@ -4,7 +4,7 @@ import unittest
 import cv2
 import numpy as np
 
-from zmxy4_treasure_hunt.maze.viewport import locate_viewport
+from zmxy4_treasure_hunt.maze.vision.viewport import locate_viewport
 from zmxy4_treasure_hunt.maze.vision import DetectionError, locate_game
 
 SOURCE = Path(__file__).resolve().parents[2] / "images" / "maze" / "full.png"

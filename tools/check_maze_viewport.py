@@ -11,8 +11,8 @@ import cv2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from zmxy4_treasure_hunt.maze.viewport import locate_viewport
-from zmxy4_treasure_hunt.maze.mask import MaskRestorer
+from zmxy4_treasure_hunt.maze.vision.viewport import locate_viewport
+from zmxy4_treasure_hunt.maze.vision.mask import MaskRestorer
 
 
 def main():

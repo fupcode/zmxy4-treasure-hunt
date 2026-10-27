@@ -10,9 +10,9 @@ import cv2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from zmxy4_treasure_hunt.maze.diagnostics import export_alignment_debug
-from zmxy4_treasure_hunt.maze.map_templates import load_weekday_map
-from zmxy4_treasure_hunt.maze.mask import MaskRestorer
+from zmxy4_treasure_hunt.maze.debug.diagnostics import export_alignment_debug
+from zmxy4_treasure_hunt.maze.navigation.templates import load_weekday_map
+from zmxy4_treasure_hunt.maze.vision.mask import MaskRestorer
 from zmxy4_treasure_hunt.maze.navigation import Maze
 from zmxy4_treasure_hunt.maze.vision import detect_walls, locate_character, locate_game
 

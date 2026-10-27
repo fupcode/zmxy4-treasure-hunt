@@ -10,7 +10,6 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy",
     "pillow",
-    "matplotlib",
     "opencv-python",
     "onnxruntime",
     "pywin32",
@@ -19,6 +18,7 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = ["matplotlib"]
 build = ["pyinstaller>=6"]
 train = [
     "pyyaml>=5.3.1",

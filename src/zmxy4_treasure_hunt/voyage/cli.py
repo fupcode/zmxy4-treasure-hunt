@@ -1,10 +1,10 @@
-"""航海参数解析与启动；解析帮助时不初始化游戏环境。"""
+"""航海寻宝参数解析与启动；解析帮助时不初始化游戏环境。"""
 
 import argparse
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="自动航海或只读调试窗口")
+    parser = argparse.ArgumentParser(description="自动航海寻宝或只读调试窗口")
     parser.add_argument("target", nargs="?", type=int, default=3, help="目标胜利次数，默认 3")
     parser.add_argument("--debug", action="store_true", help="只显示感知和建议路径，不发送鼠标或键盘指令")
     parser.add_argument("--map-index", type=int, choices=range(7), help="调试时指定大地图编号，默认从画面识别")

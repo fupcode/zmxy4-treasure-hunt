@@ -26,6 +26,7 @@ class FireAlignmentTests(unittest.TestCase):
         enemy.x1, enemy.y1, enemy.x2, enemy.y2 = box
         enemy.distance_array = enemy.fire_range = None
         enemy.fire_cool_down = cooldown
+        enemy.cool_down_time = 3
         return enemy
 
     def regions(self, enemies, x=30, y=30):
@@ -33,6 +34,23 @@ class FireAlignmentTests(unittest.TestCase):
             SimpleNamespace(x=x, y=y), [], enemies,
         )
         return self.game_map.flee_mazes
+
+    def test_flee_radius_scales_with_each_enemys_cooldown_progress(self):
+        for level, base_radius, duration in ((1, 40, 3), (4, 56, 1)):
+            self.game_map.level = level
+            enemy = self.enemy()
+            enemy.cool_down_time = duration
+            for progress in (0, 0.375, 0.5, 1):
+                with self.subTest(level=level, progress=progress):
+                    enemy.fire_cool_down = duration * (1 - progress)
+                    danger = self.regions([enemy])[3]
+                    expected = np.maximum(0, base_radius * progress - enemy.distance_array)
+                    np.testing.assert_allclose(danger, expected)
+
+        self.game_map.level = 1
+        ready = self.enemy(x=80, y=80)
+        cooling = self.enemy(x=220, y=120, cooldown=3)
+        np.testing.assert_array_equal(self.regions([ready, cooling])[3], self.regions([ready])[3])
 
 
     def test_lower_alignment_edges_cannot_be_targets_or_stop_positions(self):

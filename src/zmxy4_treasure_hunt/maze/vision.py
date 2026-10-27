@@ -147,7 +147,9 @@ def detect_walls(image, character):
     # Canny边缘检测
     edges = cv2.Canny(wall_closed, 50, 100, apertureSize=3)
     # 使用Hough Transform检测直线
-    lines = cv2.HoughLines(edges, 1, np.pi / 180, radius)  # 最后一个参数是阈值
+    # 宝箱纹理会产生大量短直线，不能仅按人物半径设置支持长度。
+    line_threshold = max(radius, 20, min(image.shape[:2]) // 8)
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, line_threshold)
 
     vertical_lines = []
     horizontal_lines = []

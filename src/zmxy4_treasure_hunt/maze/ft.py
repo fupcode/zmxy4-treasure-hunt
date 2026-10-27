@@ -9,6 +9,7 @@ import numpy as np
 
 from .capture import ScreenCapture
 from .controls import MovementController
+from .map_templates import load_weekday_map
 from .navigation import Maze
 from .vision import detect_walls, locate_character, locate_game
 
@@ -16,10 +17,11 @@ WINDOW_NAME = "Monitoring Window"
 
 
 class FindTreasure:
-    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05):
+    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05, map_template=None):
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("interval 必须为正数且有限")
         self.interval = interval
+        self.template = map_template if map_template is not None else load_weekday_map()
         self.capture = capture if capture is not None else ScreenCapture()
         self.controller = controller if controller is not None else MovementController()
         self.closed = False
@@ -34,11 +36,12 @@ class FindTreasure:
                 raise ValueError("region 必须为显示器内的整数坐标 (left, top, right, bottom)")
             self.width = self.region[2] - self.region[0]
             self.height = self.region[3] - self.region[1]
-            self.maze = Maze(self.width, self.height)
+            self.maze = Maze(self.width, self.height, self.template.cells)
         except BaseException:
             self.close()
             raise
         print("定位成功，窗口坐标为：", self.region)
+        print(f"已加载完整地图：{self.template.name}（{self.template.weekday}.json）")
 
     def close(self):
         if self.closed:
@@ -86,6 +89,9 @@ class FindTreasure:
             result = self.step()
             self.render(result.image, elapsed)
             if cv2.waitKey(1) & 0xFF == 27:
+                return
+            if result.complete:
+                print("已检查所有宝箱")
                 return
             if result.approaching_treasure:
                 if not self.next():

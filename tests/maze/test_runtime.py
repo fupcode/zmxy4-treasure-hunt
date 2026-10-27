@@ -4,6 +4,7 @@ from unittest.mock import Mock, call, patch
 import numpy as np
 
 from zmxy4_treasure_hunt.maze.capture import ScreenCapture
+from zmxy4_treasure_hunt.maze.map_templates import MapTemplate
 from zmxy4_treasure_hunt.maze.controls import MovementController
 from zmxy4_treasure_hunt.maze.navigation import NavigationResult
 from zmxy4_treasure_hunt.maze.ft import FindTreasure
@@ -74,7 +75,10 @@ class ControllerTests(unittest.TestCase):
 class RunnerTests(unittest.TestCase):
     def make_runner(self):
         capture, controller = Mock(), Mock()
-        runner = FindTreasure(capture=capture, controller=controller, region=(10, 20, 610, 420))
+        cells = np.full((5, 7), 2, dtype=np.uint8)
+        cells[1, 1:6] = [1, 3, 1, 3, 4]
+        runner = FindTreasure(capture=capture, controller=controller, region=(10, 20, 610, 420),
+                              map_template=MapTemplate(1, '测试地图', cells))
         return runner, capture, controller
 
     def test_failed_initial_location_closes_capture_and_releases_keys(self):
@@ -91,10 +95,14 @@ class RunnerTests(unittest.TestCase):
         capture.grab.return_value = frame
         observation = WallObservation(np.zeros((400, 600), dtype=np.uint8), [(120, 50)],
                                       [10, 20, 80, 90, 150], [10, 20, 80, 90, 150])
+        view = runner.template.cells.copy()
+        runner.maze.load_view(view, (1, 1))
         with patch('zmxy4_treasure_hunt.maze.ft.locate_character', return_value=Character(50, 50, 10)), \
-             patch('zmxy4_treasure_hunt.maze.ft.detect_walls', return_value=observation):
+             patch('zmxy4_treasure_hunt.maze.ft.detect_walls', return_value=observation), \
+             patch.object(runner.maze.grid, 'update'), \
+             patch.object(runner.maze.grid, 'analyze', return_value=(view, (1, 3), (0, 0))):
             result = runner.step()
-        self.assertEqual(runner.maze.char_coord, (1, 1))
+        self.assertEqual(runner.maze.char_coord, (1, 3))
         self.assertEqual(result.movements, 'D')
         self.assertTrue(result.approaching_treasure)
         capture.grab.assert_called_once_with((10, 20, 610, 420))
@@ -145,6 +153,7 @@ class RunnerTests(unittest.TestCase):
         maze = runner.maze
         view = np.full((5, 7), 2, dtype=np.uint8)
         view[1, 1:6] = [1, 3, 1, 3, 4]
+        maze.load_view(view, (1, 1))
         result = maze.load_view(view, (1, 3))
         maze.record_movements(result.movements)
         maze.grid.interval0x = 10
@@ -162,7 +171,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual((maze.char_coord, maze.view_start), location)
         self.assertEqual(maze.grid.interval0x, 10)
         self.assertEqual(list(maze.move_history), history)
-        # 恢复画面后假宝箱已经消失，下一帧在原地图继续定位和探索。
+        # 恢复画面后假宝箱已经消失，下一帧在原地图继续定位和导航。
         view[1, 5] = 1
         resumed = maze.load_view(view, (1, 5))
         self.assertEqual(maze.char_coord, (1, 5))
@@ -177,3 +186,22 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(sleep.call_args_list, [call(0.5)] * 8)
         controller.stop.assert_called_once()
         controller.click.assert_not_called()
+
+    def test_complete_map_ends_monitor_when_no_treasures_remain(self):
+        runner, _, controller = self.make_runner()
+        result = NavigationResult(np.zeros((5, 7), dtype=np.uint8), [], '', False, True)
+        with patch.object(runner, 'step', return_value=result) as step, patch.object(runner, 'render'), \
+             patch.object(runner, 'next') as check, \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.waitKey', return_value=-1):
+            runner.monitor()
+        step.assert_called_once()
+        check.assert_not_called()
+
+    def test_missing_weekly_map_does_not_create_capture_or_send_inputs(self):
+        with patch('zmxy4_treasure_hunt.maze.ft.load_weekday_map', side_effect=FileNotFoundError('map missing')), \
+             patch('zmxy4_treasure_hunt.maze.ft.ScreenCapture') as capture, \
+             patch('zmxy4_treasure_hunt.maze.ft.MovementController') as controller:
+            with self.assertRaises(FileNotFoundError):
+                FindTreasure()
+        capture.assert_not_called()
+        controller.assert_not_called()

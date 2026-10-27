@@ -39,12 +39,11 @@ class GameWindow:
 
         self.model = OnnxModel(yolo_weight_path)
 
-        self.window_box = None
-        self.window_size = None
+        self.window_box: list[int] | tuple[int, int, int, int] | None = None
+        self.window_size: tuple[int, int] | None = None
         self.left_top_mask_rate = (0.078, 0.14)
         self.left_bottom_mask_rate = (0.326, 0.872)
 
-        self.window_image = None
         self.hit_point = None
         self.map_index = None
 
@@ -74,8 +73,8 @@ class GameWindow:
         print(f"Window Size: {width} x {height} = {width * height}")
 
     def get_map_index_at_start(self):
-        self.window_image = self.capture_screen(box=self.window_box)
-        self.map_index = self.get_map_index(self.window_image)
+        frame = self.capture_screen(box=self.window_box)
+        self.map_index = self.get_map_index(frame)
 
         return self.map_index
 
@@ -86,47 +85,52 @@ class GameWindow:
         """处理已裁剪为游戏窗口的 RGB 图片，与实时更新共用感知流程。"""
         if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
             raise ValueError("Expected an RGB uint8 image with shape (H, W, 3)")
-        self.window_image = image.copy()
+        frame = image.copy()
         self.detections = {}
 
-        self.detect_item(self.window_image)
+        self.detect_item(frame)
 
-        mask_width = int(round(self.window_image.shape[1] * self.left_top_mask_rate[0]))
-        mask_height = int(round(self.window_image.shape[0] * self.left_top_mask_rate[1]))
-        self.window_image[0:mask_height, 0:mask_width] = 255
-        mask_width = int(round(self.window_image.shape[1] * self.left_bottom_mask_rate[0]))
-        mask_height = int(round(self.window_image.shape[0] * self.left_bottom_mask_rate[1]))
-        self.window_image[mask_height:, 0:mask_width] = 255
+        mask_width = int(round(frame.shape[1] * self.left_top_mask_rate[0]))
+        mask_height = int(round(frame.shape[0] * self.left_top_mask_rate[1]))
+        frame[0:mask_height, 0:mask_width] = 255
+        mask_width = int(round(frame.shape[1] * self.left_bottom_mask_rate[0]))
+        mask_height = int(round(frame.shape[0] * self.left_bottom_mask_rate[1]))
+        frame[mask_height:, 0:mask_width] = 255
 
-        map_contours = self.locate_map_contours(self.window_image)
-        self.hit_point = self.get_hit_point(self.window_image)
+        map_contours = self.locate_map_contours(frame)
+        self.hit_point = self.get_hit_point(frame)
 
         if check_status and (len(map_contours) != 1 or self.hit_point == 0):
-            if self.is_failed(self.window_image):
+            if self.is_failed(frame):
                 return -2
-            if self.is_successful(self.window_image):
+            if self.is_successful(frame):
                 return 1
             return -1
 
-        det = self.model(self.window_image, conf_threshold=conf_threshold)
+        det = self.model(frame, conf_threshold=conf_threshold)
         self.detections = det
 
         self.player_box = self.filter_player(det)
         self.enemy_boxes = det['enemy']
         self.falling_items_normal = self.filter_falling_items(det)
-        self.bullet_list_normal = self.filter_bullet(det)
+        self.bullet_list_normal = self.filter_bullet(det, frame)
 
         return 0
 
-    def set_cursor_pos_normal(self, xn, yn):
-        x = int(round(self.window_box[0] + self.window_size[0] * xn))
-        y = int(round(self.window_box[1] + self.window_size[1] * yn))
-        set_cursor_pos(x, y)
+    def _screen_point(self, xn: float, yn: float) -> tuple[int, int]:
+        box, size = self.window_box, self.window_size
+        if box is None or size is None:
+            raise GameWindowError("游戏窗口尚未初始化，请先调用 init_window()")
+        return (
+            int(round(box[0] + size[0] * xn)),
+            int(round(box[1] + size[1] * yn)),
+        )
 
-    def click_normal(self, xn, yn):
-        x = int(round(self.window_box[0] + self.window_size[0] * xn))
-        y = int(round(self.window_box[1] + self.window_size[1] * yn))
-        click(x, y)
+    def set_cursor_pos_normal(self, xn: float, yn: float) -> None:
+        set_cursor_pos(*self._screen_point(xn, yn))
+
+    def click_normal(self, xn: float, yn: float) -> None:
+        click(*self._screen_point(xn, yn))
 
     def recover(self, status, end=False):
         time.sleep(3)
@@ -155,7 +159,10 @@ class GameWindow:
 
     def refresh_game(self):
         """聚焦浏览器并刷新，按窗口相对坐标重新进入游戏和航海。"""
-        left, top, right, _ = self.window_box
+        box = self.window_box
+        if box is None:
+            raise GameWindowError("游戏窗口尚未初始化，请先调用 init_window()")
+        left, top, right, _ = box
         click(int(round((left + right) / 2)), int(top - 10))
         win32api.keybd_event(win32con.VK_F5, 0, 0, 0)
         win32api.keybd_event(win32con.VK_F5, 0, win32con.KEYEVENTF_KEYUP, 0)
@@ -247,10 +254,10 @@ class GameWindow:
 
         return falling_items
 
-    def filter_bullet(self, det):
+    def filter_bullet(self, det, image):
         if not det['bullet']:
             return []
-        hls = cv2.cvtColor(self.window_image, cv2.COLOR_RGB2HLS)
+        hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
         return self.detect_bullet_normal(hls, det['bullet'])
 
     def detect_bullet_normal(self, hls_image, bullet_boxes):

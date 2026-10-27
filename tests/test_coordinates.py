@@ -5,10 +5,24 @@ from unittest.mock import patch
 
 import numpy as np
 
-from zaomeng_hanghai.game_window import GameWindow
+from zaomeng_hanghai.game_window import GameWindow, GameWindowError
 
 
 class CoordinateTests(unittest.TestCase):
+
+    def test_uninitialized_geometry_rejects_mouse_actions(self):
+        window = GameWindow.__new__(GameWindow)
+        with patch("zaomeng_hanghai.game_window.click") as click, \
+             patch("zaomeng_hanghai.game_window.set_cursor_pos") as move:
+            for box, size in ((None, None), ((10, 20, 110, 120), None),
+                              (None, (100, 100))):
+                window.window_box, window.window_size = box, size
+                with self.subTest(box=box, size=size):
+                    for action in (window.click_normal, window.set_cursor_pos_normal):
+                        with self.assertRaisesRegex(GameWindowError, "init_window"):
+                            action(0.5, 0.5)
+            click.assert_not_called()
+            move.assert_not_called()
 
     def test_image_crops_and_screen_coordinates_use_same_rounding(self):
         window = GameWindow.__new__(GameWindow)

@@ -75,7 +75,7 @@ class GameWindowImageTests(unittest.TestCase):
         self.assertEqual(window.enemy_boxes, [box])
         self.assertEqual(window.detections["enemy"], [box])
         self.assertEqual(model.call_args.kwargs["conf_threshold"], 0.7)
-        self.assertFalse(np.shares_memory(image, window.window_image))
+        self.assertFalse(np.shares_memory(image, model.call_args.args[0]))
         with self.assertRaisesRegex(RuntimeError, "capture is disabled"):
             window.capture_screen()
 

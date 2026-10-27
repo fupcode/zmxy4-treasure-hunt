@@ -1,7 +1,7 @@
 # 造梦西游4寻宝助手
 
 项目发行包名为 `zmxy4-treasure-hunt`，Python 导入包为 `zmxy4_treasure_hunt`。
-航海寻宝位于 `voyage` 子包，后续迷宫寻宝使用 `maze` 子包。
+航海寻宝位于 `voyage` 子包，迷宫寻宝位于 `maze` 子包，运行与模块说明见 [迷宫文档](docs/maze.md)。
 共用 Rust 原生扩展为 `zmxy4_treasure_hunt._native`。
 
 基于 YOLO 目标识别和规则寻路实现自动航海。运行方式、状态码和调试说明见

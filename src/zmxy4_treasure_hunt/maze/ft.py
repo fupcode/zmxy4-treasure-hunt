@@ -1,27 +1,135 @@
+"""截图、识别、规划与执行的主循环。"""
+
 import argparse
 import math
 import time
 
-from zmxy4_treasure_hunt.maze.navigation import Graph, Maze
-from zmxy4_treasure_hunt.maze.runner import FindTreasure
+import cv2
+import numpy as np
 
-__all__ = ["FindTreasure", "Graph", "Maze", "main"]
+from .capture import ScreenCapture
+from .controls import MovementController
+from .navigation import Maze
+from .vision import detect_walls, locate_character, locate_game
+
+WINDOW_NAME = "Monitoring Window"
+
+
+class FindTreasure:
+    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05):
+        if not math.isfinite(interval) or interval <= 0:
+            raise ValueError("interval 必须为正数且有限")
+        self.interval = interval
+        self.capture = capture if capture is not None else ScreenCapture()
+        self.controller = controller if controller is not None else MovementController()
+        self.closed = False
+        try:
+            if region is None:
+                first, last = locate_game(self.capture.grab())
+                region = (*first, *last)
+            self.region = tuple(region)
+            if (len(self.region) != 4 or not all(isinstance(x, int) for x in self.region)
+                    or self.region[0] < 0 or self.region[1] < 0
+                    or self.region[2] <= self.region[0] or self.region[3] <= self.region[1]):
+                raise ValueError("region 必须为显示器内的整数坐标 (left, top, right, bottom)")
+            self.width = self.region[2] - self.region[0]
+            self.height = self.region[3] - self.region[1]
+            self.maze = Maze(self.width, self.height)
+        except BaseException:
+            self.close()
+            raise
+        print("定位成功，窗口坐标为：", self.region)
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            self.controller.stop()
+        finally:
+            self.capture.close()
+
+    def main(self):
+        try:
+            cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+            cv2.moveWindow(WINDOW_NAME, 0, 0)
+            cv2.resizeWindow(WINDOW_NAME, 290, 290)
+            cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
+            left, top, _, _ = self.region
+            self.controller.click(left + min(10, self.width - 1), top + min(10, self.height - 1))
+            time.sleep(0.1)
+            self.monitor()
+        finally:
+            try:
+                self.close()
+            finally:
+                cv2.destroyAllWindows()
+
+    def step(self):
+        """执行一帧；识别或规划失败时立即松开方向键。"""
+        try:
+            image = self.capture.grab(self.region)
+            character = locate_character(image)
+            observation = detect_walls(image, character)
+            result = self.maze.analyze(observation, character)
+            self.controller.apply(result.movements)
+            self.maze.record_movements(result.movements)
+            return result
+        except BaseException:
+            self.controller.stop()
+            raise
+
+    def monitor(self):
+        elapsed = None
+        while True:
+            started = time.monotonic()
+            result = self.step()
+            self.render(result.image, elapsed)
+            if cv2.waitKey(1) & 0xFF == 27:
+                return
+            if result.approaching_treasure:
+                if not self.next():
+                    print("已获得宝箱")
+                    return
+                # 假宝箱消失，但人物仍在原处，保留地图、格距和移动历史。
+                self.maze.remove_treasure(result.path[-1])
+            remaining = self.interval - (time.monotonic() - started)
+            if remaining > 0:
+                time.sleep(remaining)
+            elapsed = time.monotonic() - started
+
+    @staticmethod
+    def render(maze, elapsed):
+        image = np.repeat(np.repeat(maze * 40, 10, axis=1), 10, axis=0)
+        if elapsed is not None and elapsed > 0:
+            cv2.putText(image, f"FPS: {1 / elapsed:.1f}", (120, 25),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255, 1)
+        cv2.imshow(WINDOW_NAME, image)
+
+    def next(self):
+        """顶部暗场表示假宝箱：松键等待 5 秒后原地继续，最多检查八次。"""
+        left, top, right, _ = self.region
+        crop = (left, top, right, top + max(1, int(0.3 * self.height)))
+        try:
+            for _ in range(8):
+                time.sleep(0.5)
+                if np.mean(self.capture.grab(crop)[..., 1]) < 30:
+                    self.controller.stop()
+                    time.sleep(5)
+                    return True
+            return False
+        finally:
+            self.controller.stop()
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="迷宫自动寻宝（DXcam BGR 截图）")
-    parser.add_argument("--region", type=int, nargs=4, metavar=("LEFT", "TOP", "RIGHT", "BOTTOM"),
-                        help="手动指定主显示器内的游戏区域，默认自动定位")
     parser.add_argument("--interval", type=float, default=0.05, help="最小循环间隔，单位秒，默认 0.05")
-    parser.add_argument("--delay", type=float, default=2, help="启动前等待秒数，默认 2")
     args = parser.parse_args(argv)
-    if not math.isfinite(args.delay) or args.delay < 0:
-        parser.error("--delay 必须为非负数且有限")
     if not math.isfinite(args.interval) or args.interval <= 0:
         parser.error("--interval 必须为正数且有限")
     try:
-        time.sleep(args.delay)
-        FindTreasure(region=args.region, interval=args.interval).main()
+        FindTreasure(interval=args.interval).main()
     except KeyboardInterrupt:
         return 130
     return 0

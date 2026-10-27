@@ -6,7 +6,7 @@ import numpy as np
 from zmxy4_treasure_hunt.maze.capture import ScreenCapture
 from zmxy4_treasure_hunt.maze.controls import MovementController
 from zmxy4_treasure_hunt.maze.navigation import NavigationResult
-from zmxy4_treasure_hunt.maze.runner import FindTreasure
+from zmxy4_treasure_hunt.maze.ft import FindTreasure
 from zmxy4_treasure_hunt.maze.vision import Character, DetectionError, WallObservation
 
 
@@ -79,7 +79,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_failed_initial_location_closes_capture_and_releases_keys(self):
         capture, controller = Mock(), Mock()
-        with patch('zmxy4_treasure_hunt.maze.runner.locate_game', side_effect=DetectionError('no window')):
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_game', side_effect=DetectionError('no window')):
             with self.assertRaises(DetectionError):
                 FindTreasure(capture=capture, controller=controller)
         controller.stop.assert_called_once()
@@ -91,8 +91,8 @@ class RunnerTests(unittest.TestCase):
         capture.grab.return_value = frame
         observation = WallObservation(np.zeros((400, 600), dtype=np.uint8), [(120, 50)],
                                       [10, 20, 80, 90, 150], [10, 20, 80, 90, 150])
-        with patch('zmxy4_treasure_hunt.maze.runner.locate_character', return_value=Character(50, 50, 10)), \
-             patch('zmxy4_treasure_hunt.maze.runner.detect_walls', return_value=observation):
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_character', return_value=Character(50, 50, 10)), \
+             patch('zmxy4_treasure_hunt.maze.ft.detect_walls', return_value=observation):
             result = runner.step()
         self.assertEqual(runner.maze.char_coord, (1, 1))
         self.assertEqual(result.movements, 'D')
@@ -111,8 +111,8 @@ class RunnerTests(unittest.TestCase):
 
     def test_main_error_closes_devices_and_windows(self):
         runner, capture, controller = self.make_runner()
-        with patch('zmxy4_treasure_hunt.maze.runner.cv2.namedWindow', side_effect=RuntimeError('no GUI')), \
-             patch('zmxy4_treasure_hunt.maze.runner.cv2.destroyAllWindows') as destroy:
+        with patch('zmxy4_treasure_hunt.maze.ft.cv2.namedWindow', side_effect=RuntimeError('no GUI')), \
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.destroyAllWindows') as destroy:
             with self.assertRaises(RuntimeError):
                 runner.main()
         controller.stop.assert_called_once()
@@ -133,7 +133,7 @@ class RunnerTests(unittest.TestCase):
         capture.grab.return_value = np.zeros((120, 600, 3), dtype=np.uint8)
         events = Mock()
         events.attach_mock(controller.stop, 'stop')
-        with patch('zmxy4_treasure_hunt.maze.runner.time.sleep') as sleep:
+        with patch('zmxy4_treasure_hunt.maze.ft.time.sleep') as sleep:
             events.attach_mock(sleep, 'sleep')
             self.assertTrue(runner.next())
         capture.grab.assert_called_once_with((10, 20, 610, 140))
@@ -153,8 +153,8 @@ class RunnerTests(unittest.TestCase):
         history = list(maze.move_history)
         with patch.object(runner, 'step', return_value=result), patch.object(runner, 'render'), \
              patch.object(runner, 'next', return_value=True), \
-             patch('zmxy4_treasure_hunt.maze.runner.cv2.waitKey', side_effect=[-1, 27]), \
-             patch('zmxy4_treasure_hunt.maze.runner.time.sleep'):
+             patch('zmxy4_treasure_hunt.maze.ft.cv2.waitKey', side_effect=[-1, 27]), \
+             patch('zmxy4_treasure_hunt.maze.ft.time.sleep'):
             runner.monitor()
         self.assertIs(runner.maze, maze)
         before[1, 5] = 1
@@ -171,7 +171,7 @@ class RunnerTests(unittest.TestCase):
     def test_no_dark_screen_preserves_completion_behavior(self):
         runner, capture, controller = self.make_runner()
         capture.grab.return_value = np.full((120, 600, 3), 100, dtype=np.uint8)
-        with patch('zmxy4_treasure_hunt.maze.runner.time.sleep') as sleep:
+        with patch('zmxy4_treasure_hunt.maze.ft.time.sleep') as sleep:
             self.assertFalse(runner.next())
         self.assertEqual(capture.grab.call_count, 8)
         self.assertEqual(sleep.call_args_list, [call(0.5)] * 8)

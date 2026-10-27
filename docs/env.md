@@ -6,7 +6,7 @@
 .\.venv\Scripts\python.exe main.py
 ```
 
-也可以直接指定次数启动航海（显示 Monitor），其余参数由航海子命令解析：
+也可以直接指定次数启动航海，默认不显示监控窗口，其余参数由航海子命令解析：
 
 ```powershell
 .\.venv\Scripts\python.exe main.py voyage 3

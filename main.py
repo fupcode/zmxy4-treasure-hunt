@@ -19,6 +19,9 @@ def get_count_from_user():
 
 
 def choose_command():
+    print("请开启最高画质，进入寻宝游戏界面，确保出现迷宫或海，并保持游戏窗口无遮挡。")
+    print("如果使用微端这种以管理员权限运行的游戏启动器，请以管理员身份运行本程序，否则无法输入鼠标和键盘指令。")
+    print()
     while True:
         choice = input("请选择：1. 航海寻宝  2. 迷宫寻宝\n>> ").strip().lower()
         if choice in ("1", "voyage", "航海", "航海寻宝"):

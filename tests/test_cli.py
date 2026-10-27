@@ -69,13 +69,16 @@ class VoyageCliTests(unittest.TestCase):
         voyager = env.Voyager.return_value
         with patch.dict(sys.modules, {env.__name__: env}), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main(["5"]), 0)
+            env.Voyager.assert_called_once_with(render_enabled=False)
             env.auto_loop.assert_called_once_with(voyager, 5)
             voyager.init_window.assert_called_once_with(focus_game=True)
             voyager.reset_mock()
+            env.Voyager.reset_mock()
             env.auto_loop.reset_mock()
             voyager.debug_step.side_effect = [0, -3, 1]
             with patch("cv2.destroyWindow") as close:
                 self.assertEqual(cli.main(["--debug", "--map-index", "2", "--level", "1"]), 0)
+            env.Voyager.assert_called_once_with(render_enabled=True)
             voyager.init_window.assert_called_once_with(focus_game=False)
             voyager.map.reset.assert_called_once_with(2)
             voyager.map.next_level.assert_called_once_with()

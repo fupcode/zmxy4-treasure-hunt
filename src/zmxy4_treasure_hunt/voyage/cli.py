@@ -16,8 +16,7 @@ def main(argv=None):
     import cv2
     from .env import Voyager, auto_loop
 
-    print("请使用最高画质，进入航海界面，确保出现船与海，并保持游戏窗口无遮挡。")
-    voyager = Voyager(render_enabled=True)
+    voyager = Voyager(render_enabled=args.debug)
     voyager.init_window(focus_game=not args.debug)
     if args.debug:
         map_index = args.map_index if args.map_index is not None else voyager.game_window.get_map_index_at_start()

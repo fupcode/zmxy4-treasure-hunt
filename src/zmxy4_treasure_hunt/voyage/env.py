@@ -37,7 +37,7 @@ class FrameRateCalculator:
         if elapsed >= 10.0:
             if log_to_terminal:
                 average_fps = self.report_count / elapsed
-                print(f"[FPS] {average_fps:.1f}，平均更新间隔 {elapsed * 1000 / self.report_count:.1f} ms（最近 {elapsed:.1f}s）")
+                print(f"[FPS] {average_fps:.1f}，平均更新间隔 {elapsed * 1000 / self.report_count:.1f} ms")
             self.report_start = current_time
             self.report_count = 0
         self.last_time = current_time

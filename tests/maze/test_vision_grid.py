@@ -40,13 +40,14 @@ class VisionTests(unittest.TestCase):
         with self.assertRaises(DetectionError):
             detect_walls(np.zeros((100, 100, 3), dtype=np.uint8), Character(50, 50, 8))
 
-    def test_window_markers_define_cropped_game_region(self):
-        image = np.full((500, 900, 3), 100, dtype=np.uint8)
-        cv2.rectangle(image, (40, 40), (50, 50), (1, 1, 1), -1)
-        cv2.rectangle(image, (752, 440), (762, 450), (1, 1, 1), -1)
+    def test_gold_frame_and_corners_define_game_region(self):
+        image = np.full((600, 1000, 3), 100, dtype=np.uint8)
+        cv2.rectangle(image, (168, 138), (811, 505), (105, 180, 235), -1)
+        cv2.rectangle(image, (180, 150), (799, 493), (10, 10, 10), -1)
+        cv2.rectangle(image, (220, 190), (759, 453), (150, 200, 230), -1)
         first, last = locate_game(image)
-        self.assertEqual(first, (60, 74))
-        self.assertEqual(last, (743, 417))
+        self.assertEqual(first, (180, 150))
+        self.assertEqual(last, (800, 494))
 
     def test_missing_window_does_not_open_debug_windows(self):
         with patch('cv2.imshow', side_effect=AssertionError('No UI in vision')):

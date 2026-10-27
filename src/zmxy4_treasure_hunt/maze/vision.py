@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from .viewport import locate_viewport
+
 
 class DetectionError(ValueError):
     """画面中缺少可靠的定位特征。"""
@@ -45,63 +47,13 @@ def locate_character(image):
 
 
 def locate_game(image):
-    # 定义颜色
-    specific_color = np.array([1, 1, 1])
-    mask = cv2.inRange(image, specific_color, specific_color)
-
-    # 使用形态学操作去除噪点
-    kernel = np.ones((5, 5), np.uint8)
-    opening = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-    # 寻找特征区域并获取中心点
-    contours, _ = cv2.findContours(opening, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    centers = []
-    for contour in contours:
-        if cv2.contourArea(contour) >= 24:
-            moments = cv2.moments(contour)
-            if moments["m00"] == 0:
-                continue
-            center_x = int(moments["m10"] / moments["m00"])
-            center_y = int(moments["m01"] / moments["m00"])
-            centers.append((center_x, center_y))
-
-    # 挑选满足条件的中心点组合
-    best_pair = None
-    best_ratio_diff = float('inf')
-    for i in range(len(centers)):
-        for j in range(i + 1, len(centers)):
-            delta_x = abs(centers[i][0] - centers[j][0])
-            delta_y = abs(centers[i][1] - centers[j][1])
-            if delta_x > 400 and delta_y > 200:
-                ratio = delta_x / delta_y
-                ratio_diff = abs(ratio - 1.78)
-                if ratio_diff < best_ratio_diff:
-                    best_ratio_diff = ratio_diff
-                    best_pair = (centers[i], centers[j])
-
-    # 确定矩形
-    if best_pair is not None:
-        x_coords = [best_pair[0][0], best_pair[1][0]]
-        y_coords = [best_pair[0][1], best_pair[1][1]]
-        x_min, x_max = min(x_coords), max(x_coords)
-        y_min, y_max = min(y_coords), max(y_coords)
-
-        # 考虑完整的特征区域边界
-        for contour in contours:
-            for point in best_pair:
-                if cv2.pointPolygonTest(contour, point, False) >= 0:
-                    x, y, w, h = cv2.boundingRect(contour)
-                    x_min = min(x_min, x)
-                    y_min = min(y_min, y)
-                    x_max = max(x_max, x + w)
-                    y_max = max(y_max, y + h)
-
-        dx = (x_max - x_min) // 36
-        dy = (y_max - y_min) // 12
-
-        return (x_min + dx, y_min + dy), (x_max - dx, y_max - dy)
-
-    raise DetectionError("未找到游戏窗口，请确认完整游戏画面位于主显示器")
+    """用金色外框、矩形四角和暗色直边确定迷宫视区。"""
+    try:
+        match = locate_viewport(image)
+    except ValueError as exc:
+        raise DetectionError(str(exc)) from exc
+    left, top, right, bottom = match.box
+    return (left, top), (right, bottom)
 
 
 def detect_walls(image, character):

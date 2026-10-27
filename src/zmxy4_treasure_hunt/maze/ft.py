@@ -14,6 +14,15 @@ from .navigation import Maze
 from .vision import detect_walls, locate_character, locate_game
 
 WINDOW_NAME = "Monitoring Window"
+# BGR：未知区域、房间、墙壁、通道、宝箱、人物。
+MAP_COLORS = np.array([
+    (0, 0, 0),
+    (235, 235, 235),
+    (0, 0, 0),
+    (235, 235, 235),
+    (0, 190, 255),
+    (60, 210, 60),
+], dtype=np.uint8)
 
 
 class FindTreasure:
@@ -56,7 +65,7 @@ class FindTreasure:
         try:
             cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
             cv2.moveWindow(WINDOW_NAME, 0, 0)
-            cv2.resizeWindow(WINDOW_NAME, 290, 290)
+            cv2.resizeWindow(WINDOW_NAME, 290, 322)
             cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
             left, top, _, _ = self.region
             self.controller.click(left + min(10, self.width - 1), top + min(10, self.height - 1))
@@ -106,10 +115,12 @@ class FindTreasure:
 
     @staticmethod
     def render(maze, elapsed):
-        image = np.repeat(np.repeat(maze * 40, 10, axis=1), 10, axis=0)
+        image = np.repeat(np.repeat(MAP_COLORS[maze], 10, axis=1), 10, axis=0)
+        # 独立黑色状态栏，避免 FPS 文字覆盖地图中的墙壁。
+        image = cv2.copyMakeBorder(image, 32, 0, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0))
         if elapsed is not None and elapsed > 0:
-            cv2.putText(image, f"FPS: {1 / elapsed:.1f}", (120, 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255, 1)
+            cv2.putText(image, f"FPS: {1 / elapsed:.1f}", (8, 23),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         cv2.imshow(WINDOW_NAME, image)
 
     def next(self):

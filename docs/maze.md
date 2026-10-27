@@ -11,7 +11,7 @@ $env:PYTHONPATH = 'src'
 
 截图使用 DXcam 的 BGR 输出，DXGI 初始化失败时尝试 WinRT。目前使用主显示器；
 游戏完整画面应位于主显示器内，区域坐标为该显示器内的物理像素坐标。
-启动时根据画面中的颜色标记自动定位游戏区域。可调整循环间隔：
+启动时根据金色外框、矩形四角和暗色直边自动定位游戏区域。可调整循环间隔：
 
 ```powershell
 .\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.maze.ft --interval 0.05
@@ -31,6 +31,7 @@ $env:PYTHONPATH = 'src'
 | `capture.py` | BGR 截图、超时、后端回退和释放 |
 | `controls.py` | 鼠标点击、方向键变化和统一松键 |
 | `vision.py` | 人物、宝箱、墙壁线条及窗口区域识别 |
+| `viewport.py` | 金色外框颜色、四角和暗色直边联合定位视区 |
 | `grid.py` | 格距标定、补线、局部格网和人物偏移 |
 | `map_templates.py` | 按北京时间选择星期、读取并校验完整地图 |
 | `navigation.py` | 在完整地图中定位、BFS 宝箱最短路径和移动建议 |
@@ -54,6 +55,21 @@ $env:PYTHONPATH = 'src'
 假宝箱触发后消失，对应格子恢复为普通道路；保留完整地图、人物位置、格距和移动历史，
 不点击旧版过关按钮，也不回到游戏起始点。仅修改内存中的本局状态，JSON 模板保持原样。
 所有候选宝箱都处理完毕后停止。
+
+窗口定位不再匹配精确的 `(1, 1, 1)` 像素，也不依赖 WASD 模板。
+先用多档暗色阈值寻找接近 `620:344` 的矩形轮廓，再检查轴对齐四角、四侧金色区域、
+直边连续性和 Shi–Tomasi 角点支持。多个不同位置得分接近时拒绝定位。
+该方法要求完整边框可见；严重遮挡、极小缩放或 UI 边框改版仍可能失败。
+定位评分表示规则满足程度，不是成功率估计。
+
+可使用真实截图离线复核，不启动游戏或发送按键：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 tools/check_maze_viewport.py images/maze/full.png
+```
+
+输出位于 `images/maze/viewport_debug/`：`marked.png` 为矩形/四角标注，
+`viewport.png` 为裁剪视区，`report.json` 为位置和各项评分。
 
 ## 离线回归
 

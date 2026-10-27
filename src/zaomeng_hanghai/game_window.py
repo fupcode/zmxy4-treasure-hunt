@@ -36,7 +36,6 @@ class GameWindow:
             except Exception as exc:
                 print(f"DXGI screen capture initialization failed: {exc}. Trying WinRT.")
                 self.camera = dxcam.create(backend="winrt")
-                self.camera.start(target_fps=45)
 
         self.model = OnnxModel(yolo_weight_path)
 
@@ -311,21 +310,16 @@ class GameWindow:
         self.items["fan"] = np.mean(fan_mask) < 100
 
     def capture_screen(self, box=None):
+        """按需获取 RGB 截图；区域坐标相对于采集显示器，由 DXcam 校验。"""
         if self.camera is None:
             raise RuntimeError("Screen capture is disabled; use update_from_image()")
-        deadline = time.monotonic() + 5.0
+        region = tuple(box) if box is not None else None
+        deadline = time.monotonic() + 3.0
         while True:
-            # 后台采集时 grab() 读取最新缓冲帧；区域须在取得全屏图后裁剪。
-            image = self.camera.grab()
+            image = self.camera.grab(region=region)
 
             if image is not None:
-                if box is None:
-                    return image
-                left, top, right, bottom = box
-                height, width = image.shape[:2]
-                if not (0 <= left < right <= width and 0 <= top < bottom <= height):
-                    raise ValueError(f"Capture region {box} is outside frame size {width} x {height}")
-                return image[top:bottom, left:right].copy()
+                return image
 
             if time.monotonic() >= deadline:
                 raise TimeoutError("No screen frame received within 5 seconds")

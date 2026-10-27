@@ -8,7 +8,6 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pydist",
     "numpy",
     "pillow",
     "matplotlib",
@@ -35,7 +34,6 @@ features = ["pyo3/extension-module"]
 exclude = ["**/*.pdb"]
 
 [tool.uv.sources]
-pydist = { git = "ssh://git@github.com/fupcode/pydist.git" }
 torch = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
 torchvision = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
 

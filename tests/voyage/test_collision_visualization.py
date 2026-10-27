@@ -8,7 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from collision_test import draw_scene, mask_rectangles, raw_obstacle_mask
+from tests.collision_test import draw_scene, mask_rectangles, raw_obstacle_mask
 from zmxy4_treasure_hunt.voyage.core.entities import Bullets, EnemyList, FallingItems, Player
 from zmxy4_treasure_hunt.voyage.core.map import Map
 from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult

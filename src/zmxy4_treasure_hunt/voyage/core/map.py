@@ -4,7 +4,7 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 
 from . import maze_utils
-from .direction import Direction, direction_list, move_list, get_direction_vector
+from .direction import Direction, direction_list, get_direction_vector
 from .constants import (
     BULLET_AVOID_HEIGHT,
     BULLET_AVOID_WIDTH,
@@ -440,31 +440,6 @@ class Map:
 
         # 返回找到的结果
         return up_pos if up_pos != -1 else up, down_pos if down_pos != -1 else down
-
-    def is_move_collision(self, player, action):
-        """横纵各检查 3 个逻辑像素，斜向叠加两轴，仅检查路径上的格子。"""
-        if not isinstance(action, (int, np.integer)) or not 0 <= action <= len(move_list):
-            raise ValueError(f"Invalid action: {action}")
-        if action == 0:
-            return False
-        dx, dy = move_list[action - 1]
-        dx *= 3
-        dy *= 3
-        maze = self.get_maze()
-        height, width = maze.shape
-
-        def blocked(x, y):
-            # 必须先查边界，避免负下标环绕或越界异常。
-            return (not (0 <= x < width and 0 <= y < height)
-                    or maze[y, x] or self.map_template_without_exit[y, x])
-
-        steps = max(abs(dx), abs(dy))
-        for index in range(1, steps + 1):
-            x = player.x + round(dx * index / steps)
-            y = player.y + round(dy * index / steps)
-            if blocked(x, y):
-                return True
-        return False
 
     def get_direction_from_next_point(self, player, next_point):
         if next_point[0] > player.x:

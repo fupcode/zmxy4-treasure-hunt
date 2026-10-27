@@ -22,7 +22,7 @@ $env:VIRTUAL_ENV = Join-Path $PWD '.venv'
 
 ```powershell
 .venv/Scripts/python.exe -c "from zmxy4_treasure_hunt.voyage.core.maze_utils import _native_region_path; print(_native_region_path is not None)"
-.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_maze*.py'
+.venv/Scripts/python.exe -m unittest discover -s tests/voyage -p 'test_maze*.py'
 .venv/Scripts/python.exe tests/benchmark_maze.py
 ```
 

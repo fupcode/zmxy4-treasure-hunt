@@ -1,4 +1,4 @@
-"""验证感知更新、自动战斗寻路和过关接管的计算边界。"""
+"""验证环境执行、感知与导航的计算边界及动作状态。"""
 
 import unittest
 from unittest.mock import MagicMock, Mock, patch
@@ -11,7 +11,7 @@ from zmxy4_treasure_hunt.voyage.core.onnx_model import DetectionResult
 from zmxy4_treasure_hunt.voyage.env import Env
 
 
-class NextLevelTests(unittest.TestCase):
+class EnvExecutionTests(unittest.TestCase):
     def make_action_manager(self):
         self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_down"))
         self.enterContext(patch("zmxy4_treasure_hunt.voyage.core.action_manager.key_up"))

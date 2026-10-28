@@ -2,10 +2,50 @@
 
 import argparse
 import contextlib
+import json
 import multiprocessing
 from pathlib import Path
 import sys
+import tempfile
 import traceback
+
+
+def get_settings_path():
+    base = Path(sys.executable) if getattr(sys, "frozen", False) else Path(__file__)
+    return base.resolve().with_name("settings.json")
+
+
+def load_settings(path):
+    settings = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True}
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return settings
+    if not isinstance(saved, dict):
+        return settings
+    if saved.get("mode") in ("maze", "voyage"):
+        settings["mode"] = saved["mode"]
+    count = saved.get("voyage_count")
+    if type(count) is int and count > 0:
+        settings["voyage_count"] = count
+    if isinstance(saved.get("minimize_on_start"), bool):
+        settings["minimize_on_start"] = saved["minimize_on_start"]
+    return settings
+
+
+def save_settings(path, settings):
+    """在同目录写临时文件，写完后替换配置。"""
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix="settings-", suffix=".tmp", delete=False) as file:
+            temporary_path = Path(file.name)
+            json.dump(settings, file, ensure_ascii=False, indent=2)
+            file.write("\n")
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 class WindowNotFoundError(Exception):
@@ -102,20 +142,22 @@ def task_worker(mode, count, connection):
 
 
 class Application:
-    def __init__(self, root):
+    def __init__(self, root, settings_path=None):
         import tkinter as tk
         from tkinter import ttk
         from tkinter.scrolledtext import ScrolledText
 
         self.root = root
+        self.settings_path = settings_path if settings_path is not None else get_settings_path()
+        self.settings = load_settings(self.settings_path)
         self.process = self.connection = None
         self.result = None
         self.pipe_closed = False
         self.stopping = self.closing = False
         self.context = multiprocessing.get_context("spawn")
         root.title("造梦西游4寻宝助手")
-        root.geometry("520x360")
-        root.minsize(460, 280)
+        root.geometry("520x390")
+        root.minsize(400, 300)
         icon = Path(__file__).with_name("treasure_hunt.ico")
         if icon.exists():
             root.iconbitmap(str(icon))
@@ -125,7 +167,7 @@ class Application:
         header.pack(fill="x", pady=(0, 14))
         self.action_button = tk.Button(
             header, command=self.toggle_run, font=("Microsoft YaHei UI", 12, "bold"),
-            width=7, padx=12, pady=12, relief="flat", borderwidth=0,
+            width=10, padx=12, pady=12, relief="flat", borderwidth=0,
             foreground="white", activeforeground="white", disabledforeground="white",
             cursor="hand2",
         )
@@ -135,8 +177,8 @@ class Application:
         options.pack(side="left", fill="x", expand=True)
         modes = ttk.Frame(options)
         modes.pack(anchor="w")
-        self.mode = tk.StringVar(value="voyage")
-        self.count = tk.StringVar(value="3")
+        self.mode = tk.StringVar(value=self.settings["mode"])
+        self.count = tk.StringVar(value=str(self.settings["voyage_count"]))
         self.mode_buttons = []
         for label, mode in (("迷宫寻宝", "maze"), ("航海寻宝", "voyage")):
             button = ttk.Radiobutton(modes, text=label, value=mode,
@@ -148,7 +190,8 @@ class Application:
         ttk.Label(count_options, text="航海胜利次数").pack(side="left", padx=(0, 8))
         self.count_input = ttk.Spinbox(count_options, from_=1, to=9999, width=6, textvariable=self.count)
         self.count_input.pack(side="left")
-        self.minimize_on_start = tk.BooleanVar(value=True)
+        self.update_count()
+        self.minimize_on_start = tk.BooleanVar(value=self.settings["minimize_on_start"])
         ttk.Checkbutton(options, text="寻宝时最小化窗口", variable=self.minimize_on_start).pack(
             anchor="w", pady=(10, 0))
         self.log = ScrolledText(frame, wrap="word", state="disabled", font=("Microsoft YaHei UI", 9))
@@ -188,15 +231,24 @@ class Application:
 
         if self.process is not None:
             return
-        count = 3
-        if self.mode.get() == "voyage":
-            try:
-                count = int(self.count.get())
-                if count <= 0:
-                    raise ValueError
-            except ValueError:
+        try:
+            count = int(self.count.get())
+            if count <= 0:
+                raise ValueError
+        except ValueError:
+            if self.mode.get() == "voyage":
                 messagebox.showerror("次数无效", "胜利次数请输入正整数。", parent=self.root)
                 return
+            count = self.settings["voyage_count"]
+        self.settings = {
+            "mode": self.mode.get(),
+            "voyage_count": count,
+            "minimize_on_start": self.minimize_on_start.get(),
+        }
+        try:
+            save_settings(self.settings_path, self.settings)
+        except OSError as exc:
+            self.append_log(f"配置保存失败：{exc}\n")
         self.result = None
         self.pipe_closed = False
         self.stopping = False

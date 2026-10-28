@@ -2,9 +2,36 @@
 
 import unittest
 import time
+from pathlib import Path
+import tempfile
 from unittest.mock import Mock, patch
 
 import main as entry
+
+
+class SettingsTests(unittest.TestCase):
+    def test_saved_settings_round_trip(self):
+        settings = {"mode": "voyage", "voyage_count": 5, "minimize_on_start": False}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            entry.save_settings(path, settings)
+            self.assertEqual(entry.load_settings(path), settings)
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+
+    def test_missing_damaged_and_invalid_settings_use_defaults(self):
+        defaults = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            self.assertEqual(entry.load_settings(path), defaults)
+            for text in ('{', '[]', '{"mode":"other","voyage_count":false,"minimize_on_start":"false"}'):
+                with self.subTest(text=text):
+                    path.write_text(text, encoding="utf-8")
+                    self.assertEqual(entry.load_settings(path), defaults)
+
+    def test_frozen_settings_are_next_to_executable(self):
+        with patch.object(entry.sys, "frozen", True, create=True), \
+                patch.object(entry.sys, "executable", str(Path.cwd() / "dist" / "assistant.exe")):
+            self.assertEqual(entry.get_settings_path(), Path.cwd() / "dist" / "settings.json")
 
 
 def smoke_worker(mode, count, connection):
@@ -109,7 +136,8 @@ class GuiSmokeTests(unittest.TestCase):
 
         self.root = tk.Tk()
         self.root.withdraw()
-        self.app = entry.Application(self.root)
+        self.settings_directory = tempfile.TemporaryDirectory()
+        self.app = entry.Application(self.root, Path(self.settings_directory.name) / "settings.json")
 
     def tearDown(self):
         if self.app.process is not None:
@@ -118,6 +146,7 @@ class GuiSmokeTests(unittest.TestCase):
             self.app.process.close()
             self.app.connection.close()
         self.root.destroy()
+        self.settings_directory.cleanup()
 
     def wait_for_exit(self):
         deadline = time.monotonic() + 10
@@ -127,10 +156,18 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertIsNone(self.app.process, "任务未能及时退出")
 
     def test_real_spawn_log_completion_and_restart(self):
+        self.assertEqual(self.app.mode.get(), "maze")
+        self.assertTrue(self.app.count_input.instate(["disabled"]))
+        self.app.mode.set("voyage")
+        self.app.update_count()
+        self.assertFalse(self.app.settings_path.exists())
         with patch.object(entry, "task_worker", smoke_worker), \
                 patch.object(self.root, "iconify"), patch.object(self.root, "deiconify"):
             for _ in range(2):
                 self.app.action_button.invoke()
+                self.assertEqual(entry.load_settings(self.app.settings_path), {
+                    "mode": "voyage", "voyage_count": 3, "minimize_on_start": True,
+                })
                 self.assertEqual(self.app.action_button.cget("text"), "停止")
                 self.assertEqual(self.app.action_button.cget("background"), "#dc2626")
                 self.wait_for_exit()

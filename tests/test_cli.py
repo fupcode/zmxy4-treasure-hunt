@@ -1,4 +1,4 @@
-"""统一入口透传参数及交互选择，不实际操作游戏。"""
+"""统一入口透传参数及 GUI 调度，不实际操作游戏。"""
 
 import contextlib
 import io
@@ -12,13 +12,12 @@ from zmxy4_treasure_hunt.voyage import cli
 
 
 class EntryTests(unittest.TestCase):
-    def run_entry(self, command, argv, responses=()):
+    def run_entry(self, command, argv):
         module_name = ("zmxy4_treasure_hunt.maze.cli" if command == "maze"
                        else "zmxy4_treasure_hunt.voyage.cli")
         module = types.ModuleType(module_name)
         module.main = Mock(return_value=17)
         with patch.dict(sys.modules, {module_name: module}), \
-                patch("builtins.input", side_effect=responses), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(entry.main(argv), 17)
         return module.main
@@ -30,14 +29,11 @@ class EntryTests(unittest.TestCase):
             with self.subTest(command=command, args=args):
                 self.run_entry(command, [command, *args]).assert_called_once_with(args)
 
-    def test_interactive_voyage_retries_invalid_choice_and_count(self):
-        self.run_entry("voyage", [], ["oops", "1", "-1", "abc", "0", "5"]).assert_called_once_with(["5"])
-
-    def test_interactive_voyage_default_count(self):
-        self.run_entry("voyage", [], ["航海", ""]).assert_called_once_with(["3"])
-
-    def test_interactive_maze_needs_no_count(self):
-        self.run_entry("maze", [], ["2"]).assert_called_once_with([])
+    def test_no_arguments_launch_gui_without_prompt(self):
+        with patch.object(entry, "launch_gui", return_value=0) as gui, patch("builtins.input") as prompt:
+            self.assertEqual(entry.main([]), 0)
+        gui.assert_called_once_with()
+        prompt.assert_not_called()
 
     def test_help_and_unknown_command_do_not_prompt(self):
         for args, code in ((["--help"], 0), (["unknown"], 2)):
@@ -47,11 +43,6 @@ class EntryTests(unittest.TestCase):
                     entry.main(args)
                 self.assertEqual(error.exception.code, code)
                 prompt.assert_not_called()
-
-    def test_interactive_eof_exits(self):
-        with patch("builtins.input", side_effect=EOFError), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(entry.main([]), 130)
-
 
 class VoyageCliTests(unittest.TestCase):
     def test_help_and_invalid_count_do_not_load_environment(self):
@@ -69,6 +60,8 @@ class VoyageCliTests(unittest.TestCase):
                     env = types.ModuleType("zmxy4_treasure_hunt.voyage.env")
                     env.Voyager = Mock()
                     env.auto_loop = Mock()
+                    cv2 = types.ModuleType("cv2")
+                    cv2.destroyWindow = Mock()
                     voyager = env.Voyager.return_value
                     voyager.debug_step.side_effect = [0, -3, 1]
                     args = ["5"]
@@ -76,9 +69,10 @@ class VoyageCliTests(unittest.TestCase):
                         args.append("--debug")
                     if read_only:
                         args.extend(["--read-only", "--map-index", "2", "--level", "1"])
-                    with patch.dict(sys.modules, {env.__name__: env}), \
-                            contextlib.redirect_stdout(io.StringIO()), patch("cv2.destroyWindow") as close:
+                    with patch.dict(sys.modules, {env.__name__: env, "cv2": cv2}), \
+                            contextlib.redirect_stdout(io.StringIO()):
                         self.assertEqual(cli.main(args), 0)
+                    close = cv2.destroyWindow
                     env.Voyager.assert_called_once_with(render_enabled=debug)
                     voyager.init_window.assert_called_once_with(focus_game=not read_only)
                     if read_only:

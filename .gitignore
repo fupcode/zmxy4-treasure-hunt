@@ -99,3 +99,5 @@ images/
 /yolo/*
 !/yolo/README.md
 !/yolo/*.py
+
+settings.json

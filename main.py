@@ -170,6 +170,7 @@ class Application:
         icon = Path(__file__).with_name("treasure_hunt.ico")
         if icon.exists():
             root.iconbitmap(str(icon))
+            root.iconbitmap(default=str(icon))
         frame = ttk.Frame(root, padding=16)
         frame.pack(fill="both", expand=True)
         header = ttk.Frame(frame)
@@ -212,6 +213,7 @@ class Application:
         self.hotkey_button.pack(side="left")
         self.log = ScrolledText(frame, wrap="word", state="disabled", font=("Microsoft YaHei UI", 9))
         self.log.pack(fill="both", expand=True)
+        self.append_log("如果使用造梦微端，请将本程序以管理员权限启动\n")
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
 
@@ -420,6 +422,13 @@ class Application:
 def launch_gui():
     import tkinter as tk
 
+    if sys.platform == "win32":
+        import ctypes
+
+        set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
+        set_app_id.argtypes = [ctypes.c_wchar_p]
+        set_app_id.restype = ctypes.c_long
+        set_app_id("fupcode.zmxy4-treasure-hunt")
     root = tk.Tk()
     Application(root)
     root.mainloop()

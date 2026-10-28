@@ -115,26 +115,6 @@ $env:PYTHONPATH = 'src'
 本地存在 `images/maze/ft*.png` 时，还会验证七张原图的墙线识别与定位（使用预设人物坐标）。
 不连接游戏，不发送真实鼠标或键盘操作。
 
-## PyInstaller 打包
-
-日常修改仅运行功能测试，不自动构建 exe 或执行冻结程序验收。需要发布时再手动打包。
-
-七张地图位于 `src/zmxy4_treasure_hunt/maze/maps/`，遮罩位于 `maze/assets/`。
-地图和遮罩都通过 `importlib.resources` 读取，不依赖启动目录，不需要在 exe 旁另放 `maps/`。
-数据是只读模板，运行中只修改内存。
-
-打包入口为项目根目录 `main.py`，发布版使用无控制台 GUI。在项目根目录执行：
-
-```powershell
-uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --windowed --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze main.py
-```
-
-生成 `dist/maze/maze-hunt.exe`，双击打开 GUI 选择寻宝模式。需要终端日志时，使用源码命令行入口，或去掉 `--windowed` 构建控制台版本。
-将 `--onefile` 换成 `--onedir` 可生成目录版。
-项目安装后的包元数据也会注册 hook；上述命令显式指定 hook 目录，方便直接从源码打包。
-该 hook 只收集七张地图 JSON 和遮罩 PNG。机制参考 [PyInstaller 官方 hook 文档](https://pyinstaller.org/en/stable/hooks.html#providing-pyinstaller-hooks-with-your-package)。
-
 ## 定位失败诊断
 
 开启 `--debug` 后，识别或地图定位失败时，程序先松键，再自动保存当前迷宫视区到
@@ -172,7 +152,7 @@ uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
 5. 所有图都低，优先检查格网叠加图。格距或墙线错位时不应通过降低 `0.88` 阈值绕过。
 
 七图全局搜索仅用于诊断，不会自动更换运行地图、跳过起点限制或恢复探索。
-源码新增诊断后，旧 exe 需要按上文打包命令重新生成才能自动导出现场。
+源码新增诊断后，旧 exe 需要重新打包才能自动导出现场。
 
 已修复一种跟踪失败：只按最近的 WASD 方向枚举候选，会在摄像机仍沿另一轴缓动、
 或边缘格线显隐导致视图索引改变时漏掉正确位置。

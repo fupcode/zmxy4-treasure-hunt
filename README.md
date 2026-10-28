@@ -72,7 +72,7 @@ git clone https://github.com/fupcode/zmxy4-treasure-hunt.git
 cd zmxy4-treasure-hunt
 
 # 仅安装运行依赖，并编译 Rust 扩展
-uv sync --no-dev
+uv sync
 ```
 
 航海使用项目内的 `weights/best.onnx` 模型；请保留该文件，并在项目根目录运行。
@@ -99,7 +99,7 @@ uv sync --no-dev
 
 ### 开发与测试
 
-`uv sync` 默认安装运行依赖和开发依赖，包括诊断绘图使用的 `matplotlib`。
+`uv sync` 默认只安装运行依赖。诊断绘图使用的 `matplotlib` 放在 `debug` 组中，需要时通过 `uv sync --group debug` 安装。
 自动化测试和手动检查工具说明见 [测试文档](tests/README.md)。
 
 ```powershell

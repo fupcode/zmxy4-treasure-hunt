@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["matplotlib"]
+debug = ["matplotlib"]
 build = ["pyinstaller>=6"]
 train = [
     "pyyaml>=5.3.1",

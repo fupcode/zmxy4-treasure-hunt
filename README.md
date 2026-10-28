@@ -17,22 +17,22 @@
 
 ### 命令行使用
 
-在解压目录打开 PowerShell。以下以 `造梦西游4寻宝助手.exe` 为例；若下载版本的文件名不同，请替换为实际名称。
+发布版使用无控制台 GUI 打包，日志显示在助手窗口中。需要终端日志或子命令帮助时，请按下文安装源码依赖，并在项目目录打开 PowerShell，通过 Python 运行：
 
 ```powershell
 # 打开图形界面
-.\造梦西游4寻宝助手.exe
+.\.venv\Scripts\python.exe main.py
 
 # 直接开始迷宫寻宝
-.\造梦西游4寻宝助手.exe maze
+.\.venv\Scripts\python.exe main.py maze
 
 # 航海寻宝，直到胜利 5 次（省略次数时默认 3 次）
-.\造梦西游4寻宝助手.exe voyage 5
+.\.venv\Scripts\python.exe main.py voyage 5
 
 # 查看入口及子命令帮助
-.\造梦西游4寻宝助手.exe --help
-.\造梦西游4寻宝助手.exe maze --help
-.\造梦西游4寻宝助手.exe voyage --help
+.\.venv\Scripts\python.exe main.py --help
+.\.venv\Scripts\python.exe main.py maze --help
+.\.venv\Scripts\python.exe main.py voyage --help
 ```
 
 `maze`、`voyage` 后的参数由对应子命令解析。命令行模式在终端按 `Ctrl+C` 退出。
@@ -49,10 +49,10 @@
 
 ```powershell
 # 迷宫寻宝：显示监控图并启用失败诊断
-.\造梦西游4寻宝助手.exe maze --debug
+.\.venv\Scripts\python.exe main.py maze --debug
 
 # 航海寻宝：只读调试指定地图和关卡
-.\造梦西游4寻宝助手.exe voyage --read-only --debug --map-index 0 --level 1
+.\.venv\Scripts\python.exe main.py voyage --read-only --debug --map-index 0 --level 1
 ```
 
 迷宫诊断现场保存在当前运行目录的 `runs/maze-debug/` 下。识别、定位和诊断说明见
@@ -80,7 +80,7 @@ uv sync
 
 ### 运行入口
 
-源码与发布版使用相同的子命令和参数，将 exe 替换为 `python main.py` 即可：
+不带参数时打开 GUI；带子命令时在终端运行并显示日志：
 
 ```powershell
 .\.venv\Scripts\python.exe main.py

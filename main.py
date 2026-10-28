@@ -340,16 +340,6 @@ class Application:
 def launch_gui():
     import tkinter as tk
 
-    # 只隐藏打包程序自己创建的控制台，保留从 PowerShell 启动时的终端。
-    if getattr(sys, "frozen", False):
-        import ctypes
-
-        kernel32 = ctypes.windll.kernel32
-        process_ids = (ctypes.c_ulong * 2)()
-        if kernel32.GetConsoleProcessList(process_ids, 2) == 1:
-            kernel32.GetConsoleWindow.restype = ctypes.c_void_p
-            ctypes.windll.user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            ctypes.windll.user32.ShowWindow(kernel32.GetConsoleWindow(), 0)
     root = tk.Tk()
     Application(root)
     root.mainloop()

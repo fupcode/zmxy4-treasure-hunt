@@ -123,14 +123,14 @@ $env:PYTHONPATH = 'src'
 地图和遮罩都通过 `importlib.resources` 读取，不依赖启动目录，不需要在 exe 旁另放 `maps/`。
 数据是只读模板，运行中只修改内存。
 
-打包入口为项目根目录 `main.py`，生成的程序也通过 `maze`、`voyage` 子命令启动。在项目根目录执行：
+打包入口为项目根目录 `main.py`，发布版使用无控制台 GUI。在项目根目录执行：
 
 ```powershell
 uv pip install --python .venv/Scripts/python.exe "pyinstaller>=6"
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze main.py
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --windowed --name maze-hunt --paths src --additional-hooks-dir src/zmxy4_treasure_hunt/_pyinstaller/hooks --distpath dist/maze --workpath build/maze --specpath build/maze main.py
 ```
 
-生成 `dist/maze/maze-hunt.exe`，使用 `maze-hunt.exe maze` 启动迷宫，或不带参数交互选择。
+生成 `dist/maze/maze-hunt.exe`，双击打开 GUI 选择寻宝模式。需要终端日志时，使用源码命令行入口，或去掉 `--windowed` 构建控制台版本。
 将 `--onefile` 换成 `--onedir` 可生成目录版。
 项目安装后的包元数据也会注册 hook；上述命令显式指定 hook 目录，方便直接从源码打包。
 该 hook 只收集七张地图 JSON 和遮罩 PNG。机制参考 [PyInstaller 官方 hook 文档](https://pyinstaller.org/en/stable/hooks.html#providing-pyinstaller-hooks-with-your-package)。

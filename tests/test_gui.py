@@ -4,6 +4,7 @@ import unittest
 import time
 from pathlib import Path
 import tempfile
+import threading
 from unittest.mock import Mock, patch
 
 import main as entry
@@ -11,7 +12,8 @@ import main as entry
 
 class SettingsTests(unittest.TestCase):
     def test_saved_settings_round_trip(self):
-        settings = {"mode": "voyage", "voyage_count": 5, "minimize_on_start": False}
+        settings = {"mode": "voyage", "voyage_count": 5, "minimize_on_start": False,
+                    "stop_hotkey": "Alt+F9"}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"
             entry.save_settings(path, settings)
@@ -19,11 +21,13 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [path])
 
     def test_missing_damaged_and_invalid_settings_use_defaults(self):
-        defaults = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True}
+        defaults = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True,
+                    "stop_hotkey": "F8"}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"
             self.assertEqual(entry.load_settings(path), defaults)
-            for text in ('{', '[]', '{"mode":"other","voyage_count":false,"minimize_on_start":"false"}'):
+            for text in ('{', '[]', '{"mode":"other","voyage_count":false,"minimize_on_start":"false"}',
+                         '{"stop_hotkey":"Ctrl+F8"}'):
                 with self.subTest(text=text):
                     path.write_text(text, encoding="utf-8")
                     self.assertEqual(entry.load_settings(path), defaults)
@@ -80,13 +84,14 @@ class WorkerTests(unittest.TestCase):
 class LifecycleTests(unittest.TestCase):
     def make_app(self):
         app = entry.Application.__new__(entry.Application)
-        for name in ("root", "process", "connection"):
+        for name in ("root", "process", "connection", "hotkey_button"):
             setattr(app, name, Mock())
         app.mode_buttons = [Mock(), Mock()]
         app.update_count = Mock()
         app.update_action_button = Mock()
         app.append_log = Mock()
         app.result = ("done", "已完成")
+        app.hotkey = None
         app.stopping = app.closing = app.pipe_closed = False
         return app
 
@@ -138,6 +143,9 @@ class GuiSmokeTests(unittest.TestCase):
         self.root.withdraw()
         self.settings_directory = tempfile.TemporaryDirectory()
         self.app = entry.Application(self.root, Path(self.settings_directory.name) / "settings.json")
+        self.hotkey_patch = patch.object(entry, "StopHotkey",
+                                         side_effect=lambda: Mock(triggered=threading.Event(), error=None))
+        self.hotkey_patch.start()
 
     def tearDown(self):
         if self.app.process is not None:
@@ -145,7 +153,12 @@ class GuiSmokeTests(unittest.TestCase):
             self.app.process.join()
             self.app.process.close()
             self.app.connection.close()
+        self.root.update_idletasks()
+        for callback in self.root.tk.call("after", "info"):
+            self.root.after_cancel(callback)
         self.root.destroy()
+        self.app.release_hotkey()
+        self.hotkey_patch.stop()
         self.settings_directory.cleanup()
 
     def wait_for_exit(self):
@@ -167,6 +180,7 @@ class GuiSmokeTests(unittest.TestCase):
                 self.app.action_button.invoke()
                 self.assertEqual(entry.load_settings(self.app.settings_path), {
                     "mode": "voyage", "voyage_count": 3, "minimize_on_start": True,
+                    "stop_hotkey": "F8",
                 })
                 self.assertEqual(self.app.action_button.cget("text"), "停止")
                 self.assertEqual(self.app.action_button.cget("background"), "#dc2626")
@@ -189,3 +203,26 @@ class GuiSmokeTests(unittest.TestCase):
             release.assert_called_once_with()
         self.assertEqual(self.app.action_button.cget("text"), "开始")
         self.assertIn("已停止", self.app.log.get("1.0", "end"))
+
+    def test_hotkey_signal_stops_minimized_task(self):
+        with patch.object(entry, "task_worker", smoke_worker), \
+                patch.object(entry, "release_keys", return_value=None), \
+                patch.object(self.root, "iconify"), patch.object(self.root, "deiconify"):
+            self.app.start()
+            hotkey = self.app.hotkey
+            hotkey.triggered.set()
+            self.wait_for_exit()
+            hotkey.close.assert_called_once_with()
+        self.assertIn("已停止", self.app.log.get("1.0", "end"))
+
+    def test_hotkey_conflict_does_not_launch_task(self):
+        with patch.object(entry, "StopHotkey") as hotkey, \
+                patch("tkinter.messagebox.showerror") as show_error, \
+                patch.object(self.app.context, "Process") as process:
+            hotkey.return_value.start.side_effect = OSError("停止快捷键已被占用")
+            self.app.start()
+        process.assert_not_called()
+        show_error.assert_called_once()
+        self.assertIsNone(self.app.hotkey)
+        self.assertIsNone(self.app.process)
+        self.assertEqual(self.app.action_button.cget("text"), "开始")

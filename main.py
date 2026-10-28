@@ -9,6 +9,8 @@ import sys
 import tempfile
 import traceback
 
+from zmxy4_treasure_hunt.hotkey import CTRL_WARNING, KEYS, StopHotkey, parse_hotkey
+
 
 def get_settings_path():
     base = Path(sys.executable) if getattr(sys, "frozen", False) else Path(__file__)
@@ -16,7 +18,7 @@ def get_settings_path():
 
 
 def load_settings(path):
-    settings = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True}
+    settings = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True, "stop_hotkey": "F8"}
     try:
         saved = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -30,6 +32,12 @@ def load_settings(path):
         settings["voyage_count"] = count
     if isinstance(saved.get("minimize_on_start"), bool):
         settings["minimize_on_start"] = saved["minimize_on_start"]
+    try:
+        parse_hotkey(saved.get("stop_hotkey"))
+    except ValueError:
+        pass
+    else:
+        settings["stop_hotkey"] = saved["stop_hotkey"]
     return settings
 
 
@@ -151,6 +159,7 @@ class Application:
         self.settings_path = settings_path if settings_path is not None else get_settings_path()
         self.settings = load_settings(self.settings_path)
         self.process = self.connection = None
+        self.hotkey = None
         self.result = None
         self.pipe_closed = False
         self.stopping = self.closing = False
@@ -194,6 +203,13 @@ class Application:
         self.minimize_on_start = tk.BooleanVar(value=self.settings["minimize_on_start"])
         ttk.Checkbutton(options, text="寻宝时最小化窗口", variable=self.minimize_on_start).pack(
             anchor="w", pady=(10, 0))
+        hotkey_options = ttk.Frame(options)
+        hotkey_options.pack(anchor="w", pady=(10, 0))
+        ttk.Label(hotkey_options, text="停止快捷键").pack(side="left", padx=(0, 8))
+        self.stop_hotkey = tk.StringVar(value=self.settings["stop_hotkey"])
+        self.hotkey_button = ttk.Button(hotkey_options, textvariable=self.stop_hotkey,
+                                       width=14, command=self.choose_hotkey)
+        self.hotkey_button.pack(side="left")
         self.log = ScrolledText(frame, wrap="word", state="disabled", font=("Microsoft YaHei UI", 9))
         self.log.pack(fill="both", expand=True)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -201,6 +217,58 @@ class Application:
 
     def update_count(self):
         self.count_input.configure(state="normal" if self.mode.get() == "voyage" else "disabled")
+
+    def choose_hotkey(self):
+        import tkinter as tk
+        from tkinter import ttk
+        import win32api
+
+        dialog = tk.Toplevel(self.root)
+        dialog.withdraw()
+        dialog.title("设置停止快捷键")
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        prompt = tk.StringVar(value="请按下停止快捷键或组合键，Esc 取消。\n" + CTRL_WARNING)
+        ttk.Label(dialog, textvariable=prompt, padding=20, wraplength=340).pack()
+        dialog.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - dialog.winfo_reqwidth()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - dialog.winfo_reqheight()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        dialog.deiconify()
+
+        def capture(event):
+            if event.keysym == "Escape":
+                dialog.destroy()
+                return "break"
+            if event.keycode in (0x11, 0xA2, 0xA3) or win32api.GetKeyState(0x11) < 0:
+                prompt.set(CTRL_WARNING)
+                return "break"
+            # Windows Tk 的 keycode 是虚拟键码，中文输入法下也可识别。
+            key = next((name for name, code in KEYS.items() if code == event.keycode), None)
+            if key is None:
+                if event.keycode not in (0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5):
+                    prompt.set("不支持此按键，请选择其他按键（F12 为系统保留键）。")
+                return "break"
+            parts = [name for name, code in (("Alt", 0x12), ("Shift", 0x10))
+                     if win32api.GetKeyState(code) < 0]
+            text = "+".join([*parts, key])
+            try:
+                parse_hotkey(text)
+            except ValueError as exc:
+                prompt.set(str(exc))
+            else:
+                self.stop_hotkey.set(text)
+                dialog.destroy()
+            return "break"
+
+        dialog.bind("<KeyPress>", capture)
+        dialog.grab_set()
+        dialog.focus_set()
+
+    def release_hotkey(self):
+        if self.hotkey is not None:
+            self.hotkey.close()
+            self.hotkey = None
 
     def toggle_run(self):
         if self.process is None:
@@ -244,6 +312,7 @@ class Application:
             "mode": self.mode.get(),
             "voyage_count": count,
             "minimize_on_start": self.minimize_on_start.get(),
+            "stop_hotkey": self.stop_hotkey.get(),
         }
         try:
             save_settings(self.settings_path, self.settings)
@@ -254,10 +323,13 @@ class Application:
         self.stopping = False
         sender = None
         try:
+            self.hotkey = StopHotkey()
+            self.hotkey.start(self.stop_hotkey.get())
             self.connection, sender = self.context.Pipe(duplex=False)
             self.process = self.context.Process(target=task_worker, args=(self.mode.get(), count, sender))
             self.process.start()
         except Exception as exc:
+            self.release_hotkey()
             if self.connection is not None:
                 self.connection.close()
             if self.process is not None:
@@ -271,8 +343,9 @@ class Application:
         for button in self.mode_buttons:
             button.configure(state="disabled")
         self.count_input.configure(state="disabled")
+        self.hotkey_button.configure(state="disabled")
         self.update_action_button()
-        self.append_log("开始寻宝……\n")
+        self.append_log(f"开始寻宝……按 {self.stop_hotkey.get()} 可随时停止。\n")
         if self.minimize_on_start.get():
             self.root.iconify()
 
@@ -285,6 +358,11 @@ class Application:
                 self.process.terminate()
 
     def poll(self):
+        if self.hotkey is not None and self.hotkey.triggered.is_set():
+            self.hotkey.triggered.clear()
+            if self.hotkey.error:
+                self.append_log(f"停止快捷键失效：{self.hotkey.error}\n")
+            self.stop()
         if self.process is not None:
             # 终止后不读管道，避免读取被中断写入的消息。
             if not self.stopping:
@@ -315,6 +393,7 @@ class Application:
         self.process.close()
         self.connection.close()
         self.connection = self.process = None
+        self.release_hotkey()
         result = ("done", "已停止") if self.stopping else (
             self.result or ("error", f"任务进程意外退出（退出码 {exitcode}）。"))
         if self.stopping or exitcode != 0:
@@ -325,6 +404,7 @@ class Application:
         for button in self.mode_buttons:
             button.configure(state="normal")
         self.update_count()
+        self.hotkey_button.configure(state="normal")
         self.update_action_button()
         if not self.closing:
             self.root.deiconify()

@@ -24,7 +24,7 @@ class FrameRateCalculator:
         self.report_count = 0
 
     def trigger(self, log_to_terminal=False):
-        """每次有效环境更新计一帧，终端每十秒报告一次平均更新频率。"""
+        """每次战斗更新计一帧，终端每十秒报告一次战斗平均更新频率。"""
         current_time = time.perf_counter()
         if self.last_time is not None:
             time_difference = current_time - self.last_time
@@ -109,6 +109,13 @@ class Voyager:
             cv2.moveWindow("Monitor", 0, 0)
             cv2.setWindowProperty("Monitor", cv2.WND_PROP_TOPMOST, 1)
 
+    def _update_combat_fps(self):
+        """只统计连续战斗；过关、入场和空场等待均丢弃当前统计窗口。"""
+        if 1 <= self.map.level <= 4 and not self.new_level and not self.can_next_level():
+            self.fps_calculator.trigger(log_to_terminal=not self.render_enabled)
+        else:
+            self.fps_calculator.reset()
+
     def reset(self):
         self._reset_combat_timer()
         self.player = None
@@ -141,6 +148,7 @@ class Voyager:
         start_time = time.monotonic()
         if status_code == -1:
             self._pause_combat_timer()
+            self.fps_calculator.reset()
         while status_code == -1:
             time.sleep(0.1)
             status_code = self.game_window.update()
@@ -151,6 +159,7 @@ class Voyager:
         # 结算画面没有新的实体检测结果，保留最后一次有效的场景状态。
         if status_code:
             self._pause_combat_timer()
+            self.fps_calculator.reset()
             return status_code
 
         maze = self.map.get_maze()
@@ -221,7 +230,7 @@ class Voyager:
         self.map.flee_mazes = None
         self.map.debug_image = None
 
-        self.fps_calculator.trigger(log_to_terminal=not self.render_enabled)
+        self._update_combat_fps()
         return self._update_combat_timer()
 
     def update_navigation(self):

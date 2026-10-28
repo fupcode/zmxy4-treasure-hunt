@@ -41,6 +41,7 @@ class VoyagerExecutionTests(unittest.TestCase):
             with self.subTest(status=status):
                 voyager = Voyager.__new__(Voyager)
                 voyager._reset_combat_timer()
+                voyager.fps_calculator = Mock()
                 voyager.game_window = Mock()
                 voyager.game_window.update.return_value = status
                 voyager.map = Mock(level=4)
@@ -56,6 +57,7 @@ class VoyagerExecutionTests(unittest.TestCase):
                 voyager._reset_combat_timer()
                 voyager.player = None
                 voyager.render_enabled = False
+                voyager.new_level = False
                 voyager.fps_calculator = Mock()
                 voyager.game_window = Mock()
                 voyager.game_window.update.return_value = 0
@@ -70,7 +72,11 @@ class VoyagerExecutionTests(unittest.TestCase):
                 voyager.falling_items = Mock()
                 with patch("zmxy4_treasure_hunt.voyage.env.Player"):
                     self.assertEqual(voyager.update(), 0)
-                voyager.fps_calculator.trigger.assert_called_once_with(log_to_terminal=True)
+                if enemies or bullets:
+                    voyager.fps_calculator.trigger.assert_called_once_with(log_to_terminal=True)
+                else:
+                    voyager.fps_calculator.trigger.assert_not_called()
+                    voyager.fps_calculator.reset.assert_called_once_with()
                 voyager.map.update.assert_not_called()
                 self.assertIsNone(voyager.map.debug_image)
                 self.assertIsNone(voyager.map.flee_mazes)

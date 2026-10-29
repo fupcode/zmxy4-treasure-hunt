@@ -3,6 +3,8 @@ name = "zmxy4-treasure-hunt"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [
     { name = "fpc", email = "fupcode@outlook.com" }
 ]

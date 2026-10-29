@@ -3,7 +3,7 @@ name = "zmxy4-treasure-hunt-native"
 version = "0.1.0"
 edition = "2021"
 publish = false
-include = ["rust/**", "Cargo.toml", "Cargo.lock", "pyproject.toml", "README.md"]
+include = ["rust/**", "Cargo.toml", "Cargo.lock", "pyproject.toml", "README.md", "LICENSE"]
 
 [lib]
 name = "_native"

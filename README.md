@@ -142,3 +142,11 @@ $env:VIRTUAL_ENV = Join-Path $PWD '.venv'
 
 项目发行包名为 `zmxy4-treasure-hunt`，Python 导入包为 `zmxy4_treasure_hunt`，
 共用 Rust 原生扩展为 `zmxy4_treasure_hunt._native`。
+
+## 开源协议
+
+Copyright (C) 2026 fpc
+
+本项目采用 GNU Affero General Public License v3.0（`AGPL-3.0-only`，仅第 3 版）发布，完整协议见 [LICENSE](LICENSE)。本项目不提供任何担保，具体条款以协议全文为准。
+
+第三方依赖及素材遵循各自的许可证。

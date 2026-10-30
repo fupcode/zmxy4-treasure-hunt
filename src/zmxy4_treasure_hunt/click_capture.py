@@ -13,9 +13,51 @@ class ClickCapture:
         self.message = message
         self.region = None
         self.preview_region = None
+        self.manual_mode = False
+        self.drag_start = None
 
     def capture_click(self, event):
+        if self.manual_mode:
+            self.drag_start = self.selection_point(event)
+            self.show_preview(None)
+            return
         # 确认当前显示的范围，避免销毁遮罩后命中另一个窗口。
+        if self.preview_region is not None:
+            self.click_position = (event.x_root, event.y_root)
+            self.region = self.preview_region
+            self.root.quit()
+
+    def toggle_selection_mode(self, event=None):
+        self.manual_mode = not self.manual_mode
+        self.drag_start = None
+        self.show_preview(None)
+        self.canvas.itemconfigure(
+            self.hint, text="拖动鼠标框选游戏区域" if self.manual_mode else self.message)
+        self.canvas.itemconfigure(
+            self.help_text,
+            text=("框选模式 · 拖动后松开确认 · F2 自动选窗 · Esc 取消"
+                  if self.manual_mode else
+                  "移动鼠标预览窗口 · 单击确认 · F2 框选 · Esc 取消"))
+
+    def selection_point(self, event):
+        return (
+            max(self.origin[0], min(event.x_root, self.origin[0] + self.screenshot.width)),
+            max(self.origin[1], min(event.y_root, self.origin[1] + self.screenshot.height)),
+        )
+
+    def drag_selection(self, event):
+        if not self.manual_mode or self.drag_start is None:
+            return
+        x0, y0 = self.drag_start
+        x1, y1 = self.selection_point(event)
+        region = (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+        self.show_preview(region if x0 != x1 and y0 != y1 else None)
+
+    def finish_selection(self, event):
+        if not self.manual_mode or self.drag_start is None:
+            return
+        self.drag_selection(event)
+        self.drag_start = None
         if self.preview_region is not None:
             self.click_position = (event.x_root, event.y_root)
             self.region = self.preview_region
@@ -44,7 +86,11 @@ class ClickCapture:
         return windows[0] if windows else None
 
     def update_preview(self):
-        region = self.window_at(win32gui.GetCursorPos())
+        if not self.manual_mode:
+            self.show_preview(self.window_at(win32gui.GetCursorPos()))
+        self.preview_job = self.root.after(30, self.update_preview)
+
+    def show_preview(self, region):
         if region != self.preview_region:
             self.preview_region = region
             self.canvas.delete("preview")
@@ -61,13 +107,14 @@ class ClickCapture:
                 self.canvas.create_rectangle(x1 + 2, y1 + 2, x2 - 2, y2 - 2,
                                              outline="#00c8ff", width=4, tags="preview")
             self.canvas.tag_raise("hint")
-        self.preview_job = self.root.after(30, self.update_preview)
 
     def start_capture(self):
         self.click_position = None
         self.region = None
         self.preview_region = None
         self.preview_job = None
+        self.manual_mode = False
+        self.drag_start = None
         # Tk 和 Win32 使用同一套物理像素坐标，兼容多屏及不同缩放比例。
         set_dpi_context = ctypes.windll.user32.SetThreadDpiAwarenessContext
         set_dpi_context.argtypes = [ctypes.c_void_p]
@@ -103,9 +150,9 @@ class ClickCapture:
                 width=hint_width, justify="center", font=('Microsoft YaHei', 22, 'bold'),
                 fill="#fde047", tags="hint")
             message_bottom = self.canvas.bbox(self.hint)[3]
-            self.canvas.create_text(
+            self.help_text = self.canvas.create_text(
                 hint_x, message_bottom + 14, anchor="n",
-                text="移动鼠标预览窗口 · 单击确认 · Esc 取消",
+                text="移动鼠标预览窗口 · 单击确认 · F2 框选 · Esc 取消",
                 width=hint_width, justify="center", font=('Microsoft YaHei', 12),
                 fill="white", tags="hint")
             left, top, right, bottom = self.canvas.bbox("hint")
@@ -114,6 +161,9 @@ class ClickCapture:
                 fill="#111827", outline="#38bdf8", width=3, tags="hint")
             self.canvas.tag_lower(panel, heading)
             self.root.bind("<Button-1>", self.capture_click)
+            self.root.bind("<B1-Motion>", self.drag_selection)
+            self.root.bind("<ButtonRelease-1>", self.finish_selection)
+            self.root.bind("<F2>", self.toggle_selection_mode)
             self.root.bind("<Escape>", self.exit_capture)
             self.root.update_idletasks()
             self.overlay_hwnd = win32gui.GetAncestor(self.root.winfo_id(), win32con.GA_ROOT)

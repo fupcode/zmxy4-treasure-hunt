@@ -90,10 +90,29 @@ class ClickCapture:
             self.background_image = ImageTk.PhotoImage(dimmed, master=self.root)
             self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
             # 提示放在主屏幕上，即使副屏在左侧也能看到。
-            hint_x = win32api.GetSystemMetrics(win32con.SM_CXSCREEN) // 2 - self.origin[0]
+            screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+            hint_x = screen_width // 2 - self.origin[0]
             hint_y = 40 - self.origin[1]
-            self.hint = self.canvas.create_text(hint_x, hint_y, anchor="n", text=self.message,
-                                                font=('Microsoft YaHei', 14), fill="white", tags="hint")
+            hint_width = max(160, min(640, screen_width - 100))
+            heading = self.canvas.create_text(
+                hint_x, hint_y, anchor="n", text="选择游戏窗口",
+                font=('Microsoft YaHei', 12, 'bold'), fill="#7dd3fc", tags="hint")
+            heading_bottom = self.canvas.bbox(heading)[3]
+            self.hint = self.canvas.create_text(
+                hint_x, heading_bottom + 12, anchor="n", text=self.message,
+                width=hint_width, justify="center", font=('Microsoft YaHei', 22, 'bold'),
+                fill="#fde047", tags="hint")
+            message_bottom = self.canvas.bbox(self.hint)[3]
+            self.canvas.create_text(
+                hint_x, message_bottom + 14, anchor="n",
+                text="移动鼠标预览窗口 · 单击确认 · Esc 取消",
+                width=hint_width, justify="center", font=('Microsoft YaHei', 12),
+                fill="white", tags="hint")
+            left, top, right, bottom = self.canvas.bbox("hint")
+            panel = self.canvas.create_rectangle(
+                left - 24, top - 18, right + 24, bottom + 18,
+                fill="#111827", outline="#38bdf8", width=3, tags="hint")
+            self.canvas.tag_lower(panel, heading)
             self.root.bind("<Button-1>", self.capture_click)
             self.root.bind("<Escape>", self.exit_capture)
             self.root.update_idletasks()

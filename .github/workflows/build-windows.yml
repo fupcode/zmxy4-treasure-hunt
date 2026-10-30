@@ -1,0 +1,54 @@
+name: Windows 发布包
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: 准备 Rust 编译器
+        run: rustup default stable
+      - name: 安装项目与打包工具
+        run: python -m pip install . "pyinstaller>=6,<7"
+      - name: 确认原生扩展与数据资源
+        run: |
+          python -c "from zmxy4_treasure_hunt._native import region_path; from zmxy4_treasure_hunt.maze.navigation import load_weekday_map; load_weekday_map()"
+      - name: 构建完整发布包
+        run: python tools/build_distribution.py
+      - name: 上传发布 ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: build/release/*.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: 发布 GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: pwsh
+        run: |
+          $archives = @(Get-ChildItem -LiteralPath build/release -Filter '*.zip' -File)
+          if ($archives.Count -ne 1) { throw '预期生成一个发布 ZIP' }
+          gh release view "$env:RELEASE_TAG" --json tagName > $null 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "$env:RELEASE_TAG" $archives[0].FullName --clobber
+          } else {
+            gh release create "$env:RELEASE_TAG" $archives[0].FullName --verify-tag --title "$env:RELEASE_TAG" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw '发布 GitHub Release 失败' }

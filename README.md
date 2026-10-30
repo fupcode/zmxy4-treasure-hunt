@@ -103,6 +103,32 @@ uv sync
 .\.venv\Scripts\python.exe -m zmxy4_treasure_hunt.voyage.cli --help
 ```
 
+### Windows 自动构建
+
+推送 `v*` 标签时，Actions 会自动构建 Windows x64 发布包，创建同名 GitHub Release，并上传完整发布 ZIP、自动生成版本说明。同一标签重新运行时，会替换该 Release 中的同名 ZIP。
+普通分支推送不触发构建。也可以在 Actions → Windows 发布包 → Run workflow 手动构建，手动运行只上传 Artifacts，不发布 Release。
+
+先提交并推送代码，再推送版本标签，例如：
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+构建完成后，在 Releases 页面下载 ZIP，解压后运行文件夹内的 `造梦西游4寻宝助手.exe`。
+手动构建的产物在该次运行的 Artifacts → `windows-x64` 中，需解压下载文件及其中的发布 ZIP。
+
+发布 ZIP 包含 exe、`_internal`、`weights/best.onnx`、管理员权限说明图片和文档。模型取自仓库的 `weights/best.onnx`，说明图片取自 `packaging/assets/`。
+不携带本机 `settings.json`，用户首次运行后自行生成。更新模型或说明图片时，请更新这些源文件，无需提交整个 `dist`。
+
+本地使用已安装项目和 PyInstaller 的 Windows 环境也可构建：
+
+```powershell
+.venv/Scripts/python.exe tools/build_distribution.py
+```
+
+输出位于 `build/release/`，不会覆盖原有的 `dist` 目录。
+
 ### 开发与测试
 
 `uv sync` 默认只安装运行依赖。诊断绘图使用的 `matplotlib` 放在 `debug` 组中，需要时通过 `uv sync --group debug` 安装。

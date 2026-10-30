@@ -1,5 +1,6 @@
 import cv2
 import os
+import sys
 import time
 import numpy as np
 import dxcam
@@ -29,6 +30,8 @@ class GameWindow:
     )
 
     def __init__(self, yolo_weight_path="weights/best.onnx", *, capture_enabled=True):
+        if getattr(sys, "frozen", False) and not os.path.isabs(yolo_weight_path):
+            yolo_weight_path = os.path.join(os.path.dirname(sys.executable), yolo_weight_path)
         self.refresh_on_engine_timeout = False
         self.camera = None
         if capture_enabled:

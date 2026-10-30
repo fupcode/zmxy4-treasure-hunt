@@ -240,7 +240,8 @@ def main(argv=None):
         parser.error("请提供完整游戏窗口截图；局部物体小图无法使用 GameWindow 的界面解析。")
     window.window_size, window.window_box = (width, height), (0, 0, width, height)
     start = perf_counter()
-    status = window.update_from_image(image, conf_threshold=args.conf, check_status=not args.force_detect)
+    # 后续标注需要未遮罩的原图，只有离线工具保留一份副本。
+    status = window.update_from_image(image.copy(), conf_threshold=args.conf, check_status=not args.force_detect)
     elapsed_ms = (perf_counter() - start) * 1000
     print(f"GameWindow status={status}, HP={window.hit_point}, perception={elapsed_ms:.2f} ms")
     if status:

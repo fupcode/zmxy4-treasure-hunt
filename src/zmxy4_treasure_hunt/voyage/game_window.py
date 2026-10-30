@@ -90,10 +90,10 @@ class GameWindow:
         return self.update_from_image(self.capture_screen(box=self.window_box))
 
     def update_from_image(self, image, *, conf_threshold=0.4, check_status=True):
-        """处理已裁剪为游戏窗口的 RGB 图片，与实时更新共用感知流程。"""
+        """原地处理 RGB 游戏截图；需要保留原图的调用方应先复制。"""
         if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
             raise ValueError("Expected an RGB uint8 image with shape (H, W, 3)")
-        frame = image.copy()
+        frame = image
         self.detections = {}
 
         self.detect_item(frame)

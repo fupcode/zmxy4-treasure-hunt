@@ -69,7 +69,7 @@ class GameWindowImageTests(unittest.TestCase):
         for call in window.camera.grab.call_args_list:
             self.assertEqual(call.kwargs, {"region": (100, 200, 105, 204)})
 
-    def test_offline_processing_preserves_source_and_uses_threshold(self):
+    def test_processing_masks_input_in_place_and_uses_threshold(self):
         box = DetectionResult(0.9, [0.2, 0.3, 0.4, 0.6])
         model = Mock(return_value={
             "enemy": [box], "player": [box], "bullet": [],
@@ -83,11 +83,14 @@ class GameWindowImageTests(unittest.TestCase):
         with patch.object(window, "locate_map_contours", return_value=[object()]), \
              patch.object(window, "get_hit_point", return_value=4):
             self.assertEqual(window.update_from_image(image, conf_threshold=0.7), 0)
-        np.testing.assert_array_equal(image, 0)
+        expected = np.zeros_like(image)
+        expected[:28, :25] = 255
+        expected[174:, :104] = 255
+        np.testing.assert_array_equal(image, expected)
         self.assertEqual(window.enemy_boxes, [box])
         self.assertEqual(window.detections["enemy"], [box])
         self.assertEqual(model.call_args.kwargs["conf_threshold"], 0.7)
-        self.assertFalse(np.shares_memory(image, model.call_args.args[0]))
+        self.assertIs(image, model.call_args.args[0])
         with self.assertRaisesRegex(RuntimeError, "capture is disabled"):
             window.capture_screen()
 

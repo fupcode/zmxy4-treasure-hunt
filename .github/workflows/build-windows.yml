@@ -28,12 +28,24 @@ jobs:
         run: |
           python -c "from zmxy4_treasure_hunt._native import region_path; from zmxy4_treasure_hunt.maze.navigation import load_weekday_map; load_weekday_map()"
       - name: 构建完整发布包
-        run: python tools/build_distribution.py
+        shell: pwsh
+        run: |
+          python tools/build_distribution.py
+          if ($LASTEXITCODE -ne 0) { throw '构建发布包失败' }
+          $packageSuffix = if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $env:GITHUB_REF_NAME
+          } else {
+            python -c "import tomllib; from pathlib import Path; print(tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          }
+          if ($LASTEXITCODE -ne 0 -or -not $packageSuffix) { throw '读取发布包名称失败' }
+          $archives = @(Get-ChildItem -LiteralPath build/release -Filter '*.zip' -File)
+          if ($archives.Count -ne 1) { throw '预期生成一个发布 ZIP' }
+          Rename-Item -LiteralPath $archives[0].FullName -NewName "zmxy4-treasure-hunt-$packageSuffix.zip"
       - name: 上传发布 ZIP
         uses: actions/upload-artifact@v4
         with:
           name: windows-x64
-          path: build/release/*.zip
+          path: build/release/zmxy4-treasure-hunt-*.zip
           if-no-files-found: error
           retention-days: 30
       - name: 发布 GitHub Release
@@ -43,7 +55,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         shell: pwsh
         run: |
-          $archives = @(Get-ChildItem -LiteralPath build/release -Filter '*.zip' -File)
+          $archives = @(Get-ChildItem -LiteralPath build/release -Filter 'zmxy4-treasure-hunt-*.zip' -File)
           if ($archives.Count -ne 1) { throw '预期生成一个发布 ZIP' }
           gh release view "$env:RELEASE_TAG" --json tagName > $null 2>&1
           if ($LASTEXITCODE -eq 0) {

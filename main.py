@@ -89,13 +89,27 @@ def release_keys():
         return f"释放操作按键失败：{exc}"
 
 
+def locate_with_retry(locate, error_type):
+    """自动定位失败后，选择外层窗口并仅重试一次。"""
+    try:
+        return locate()
+    except error_type:
+        from zmxy4_treasure_hunt.click_capture import ClickCapture
+
+        print("自动定位失败，请点击游戏所在窗口，按 Esc 取消。")
+        outer_window_box = ClickCapture().start_capture()
+        if outer_window_box is None:
+            raise WindowNotFoundError("已取消窗口选择。")
+    return locate(outer_window_box=outer_window_box)
+
+
 def run_task(mode, count):
     if mode == "maze":
         from zmxy4_treasure_hunt.maze.ft import FindTreasure
         from zmxy4_treasure_hunt.maze.vision.scene import DetectionError
 
         try:
-            task = FindTreasure()
+            task = locate_with_retry(FindTreasure, DetectionError)
         except DetectionError as exc:
             raise WindowNotFoundError(
                 "找不到迷宫窗口。请进入迷宫寻宝界面，将游戏放在主显示器上，"
@@ -114,7 +128,7 @@ def run_task(mode, count):
         voyager = Voyager()
         try:
             try:
-                voyager.init_window()
+                locate_with_retry(voyager.init_window, GameWindowError)
             except GameWindowError as exc:
                 raise WindowNotFoundError(
                     "找不到航海窗口。请先进入出现船与海的航海界面，"

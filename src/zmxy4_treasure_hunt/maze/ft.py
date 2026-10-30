@@ -26,7 +26,7 @@ MAP_COLORS = np.array([
 
 
 class FindTreasure:
-    def __init__(self, *, capture=None, controller=None, region=None, interval=0.05, map_template=None, debug=False):
+    def __init__(self, *, capture=None, controller=None, outer_window_box=None, interval=0.05, map_template=None, debug=False):
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("interval 必须为正数且有限")
         self.interval = interval
@@ -36,10 +36,10 @@ class FindTreasure:
         self.controller = controller if controller is not None else MovementController()
         self.closed = False
         try:
-            if region is None:
-                first, last = locate_game(self.capture.grab())
-                region = (*first, *last)
-            self.region = tuple(region)
+            first, last = locate_game(self.capture.grab(outer_window_box))
+            left, top = outer_window_box[:2] if outer_window_box is not None else (0, 0)
+            self.region = (first[0] + left, first[1] + top,
+                           last[0] + left, last[1] + top)
             if (len(self.region) != 4 or not all(isinstance(x, int) for x in self.region)
                     or self.region[0] < 0 or self.region[1] < 0
                     or self.region[2] <= self.region[0] or self.region[3] <= self.region[1]):

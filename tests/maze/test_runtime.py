@@ -77,9 +77,21 @@ class RunnerTests(unittest.TestCase):
         capture, controller = Mock(), Mock()
         cells = np.full((5, 7), 2, dtype=np.uint8)
         cells[1, 1:6] = [1, 3, 1, 3, 4]
-        runner = FindTreasure(capture=capture, controller=controller, region=(10, 20, 610, 420),
-                              map_template=MapTemplate(1, '测试地图', cells), debug=debug)
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_game', return_value=((10, 20), (610, 420))):
+            runner = FindTreasure(capture=capture, controller=controller,
+                                  map_template=MapTemplate(1, '测试地图', cells), debug=debug)
+        capture.reset_mock()
         return runner, capture, controller
+
+    def test_outer_window_only_limits_initial_capture_and_offsets_detected_region(self):
+        capture, controller = Mock(), Mock()
+        outer = (100, 200, 1000, 900)
+        with patch('zmxy4_treasure_hunt.maze.ft.locate_game', return_value=((10, 20), (610, 420))) as locate:
+            runner = FindTreasure(capture=capture, controller=controller, outer_window_box=outer)
+        capture.grab.assert_called_once_with(outer)
+        locate.assert_called_once_with(capture.grab.return_value)
+        self.assertEqual(runner.region, (110, 220, 710, 620))
+        runner.close()
 
     def test_failed_initial_location_closes_capture_and_releases_keys(self):
         capture, controller = Mock(), Mock()

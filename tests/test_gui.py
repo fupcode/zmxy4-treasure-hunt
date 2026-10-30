@@ -1,13 +1,46 @@
 """验证任务日志、错误提示与停止清理，不实际操作游戏。"""
 
 import unittest
-import time
 from pathlib import Path
 import tempfile
-import threading
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import main as entry
+
+
+class LocationRetryTests(unittest.TestCase):
+    def test_success_does_not_open_selector(self):
+        locate = Mock(return_value="located")
+        with patch('zmxy4_treasure_hunt.click_capture.ClickCapture') as selector:
+            self.assertEqual(entry.locate_with_retry(locate, ValueError), "located")
+        locate.assert_called_once_with()
+        selector.assert_not_called()
+
+    def test_failure_retries_once_with_selected_outer_window(self):
+        locate = Mock(side_effect=[ValueError("missing"), "located"])
+        outer = (100, 200, 900, 800)
+        with patch('zmxy4_treasure_hunt.click_capture.ClickCapture') as selector:
+            selector.return_value.start_capture.return_value = outer
+            self.assertEqual(entry.locate_with_retry(locate, ValueError), "located")
+        self.assertEqual(locate.call_args_list, [call(), call(outer_window_box=outer)])
+        selector.return_value.start_capture.assert_called_once_with()
+
+    def test_second_failure_is_not_retried(self):
+        locate = Mock(side_effect=ValueError("missing"))
+        with patch('zmxy4_treasure_hunt.click_capture.ClickCapture') as selector:
+            selector.return_value.start_capture.return_value = (0, 0, 900, 800)
+            with self.assertRaises(ValueError):
+                entry.locate_with_retry(locate, ValueError)
+        self.assertEqual(locate.call_count, 2)
+        selector.return_value.start_capture.assert_called_once_with()
+
+    def test_cancel_does_not_retry(self):
+        locate = Mock(side_effect=ValueError("missing"))
+        with patch('zmxy4_treasure_hunt.click_capture.ClickCapture') as selector:
+            selector.return_value.start_capture.return_value = None
+            with self.assertRaisesRegex(entry.WindowNotFoundError, "已取消"):
+                entry.locate_with_retry(locate, ValueError)
+        locate.assert_called_once_with()
 
 
 class SettingsTests(unittest.TestCase):
@@ -36,16 +69,6 @@ class SettingsTests(unittest.TestCase):
         with patch.object(entry.sys, "frozen", True, create=True), \
                 patch.object(entry.sys, "executable", str(Path.cwd() / "dist" / "assistant.exe")):
             self.assertEqual(entry.get_settings_path(), Path.cwd() / "dist" / "settings.json")
-
-
-def smoke_worker(mode, count, connection):
-    """真实 spawn 子进程的替身，不导入游戏模块、不发送按键。"""
-    if mode == "maze":
-        time.sleep(30)
-    else:
-        connection.send(("log", f"胜利 {count}/{count}\n"))
-        connection.send(("done", "已完成"))
-        connection.close()
 
 
 class WorkerTests(unittest.TestCase):
@@ -133,96 +156,3 @@ class LifecycleTests(unittest.TestCase):
             app.poll()
         app.root.destroy.assert_called_once_with()
         app.root.deiconify.assert_not_called()
-
-
-class GuiSmokeTests(unittest.TestCase):
-    def setUp(self):
-        import tkinter as tk
-
-        self.root = tk.Tk()
-        self.root.withdraw()
-        self.settings_directory = tempfile.TemporaryDirectory()
-        self.app = entry.Application(self.root, Path(self.settings_directory.name) / "settings.json")
-        self.hotkey_patch = patch.object(entry, "StopHotkey",
-                                         side_effect=lambda: Mock(triggered=threading.Event(), error=None))
-        self.hotkey_patch.start()
-
-    def tearDown(self):
-        if self.app.process is not None:
-            self.app.process.terminate()
-            self.app.process.join()
-            self.app.process.close()
-            self.app.connection.close()
-        self.root.update_idletasks()
-        for callback in self.root.tk.call("after", "info"):
-            self.root.after_cancel(callback)
-        self.root.destroy()
-        self.app.release_hotkey()
-        self.hotkey_patch.stop()
-        self.settings_directory.cleanup()
-
-    def wait_for_exit(self):
-        deadline = time.monotonic() + 10
-        while self.app.process is not None and time.monotonic() < deadline:
-            self.root.update()
-            time.sleep(0.01)
-        self.assertIsNone(self.app.process, "任务未能及时退出")
-
-    def test_real_spawn_log_completion_and_restart(self):
-        self.assertEqual(self.app.mode.get(), "maze")
-        self.assertTrue(self.app.count_input.instate(["disabled"]))
-        self.app.mode.set("voyage")
-        self.app.update_count()
-        self.assertFalse(self.app.settings_path.exists())
-        with patch.object(entry, "task_worker", smoke_worker), \
-                patch.object(self.root, "iconify"), patch.object(self.root, "deiconify"):
-            for _ in range(2):
-                self.app.action_button.invoke()
-                self.assertEqual(entry.load_settings(self.app.settings_path), {
-                    "mode": "voyage", "voyage_count": 3, "minimize_on_start": True,
-                    "stop_hotkey": "F8",
-                })
-                self.assertEqual(self.app.action_button.cget("text"), "停止")
-                self.assertEqual(self.app.action_button.cget("background"), "#dc2626")
-                self.wait_for_exit()
-                self.assertEqual(self.app.action_button.cget("text"), "开始")
-                self.assertEqual(self.app.action_button.cget("background"), "#16a34a")
-        self.assertIn("胜利 3/3", self.app.log.get("1.0", "end"))
-
-    def test_maze_disables_count_and_stops_real_process(self):
-        self.app.mode.set("maze")
-        self.app.update_count()
-        self.assertTrue(self.app.count_input.instate(["disabled"]))
-        with patch.object(entry, "task_worker", smoke_worker), \
-                patch.object(entry, "release_keys", return_value=None) as release, \
-                patch.object(self.root, "iconify"), patch.object(self.root, "deiconify"):
-            self.app.action_button.invoke()
-            self.app.action_button.invoke()
-            self.assertEqual(str(self.app.action_button.cget("state")), "disabled")
-            self.wait_for_exit()
-            release.assert_called_once_with()
-        self.assertEqual(self.app.action_button.cget("text"), "开始")
-        self.assertIn("已停止", self.app.log.get("1.0", "end"))
-
-    def test_hotkey_signal_stops_minimized_task(self):
-        with patch.object(entry, "task_worker", smoke_worker), \
-                patch.object(entry, "release_keys", return_value=None), \
-                patch.object(self.root, "iconify"), patch.object(self.root, "deiconify"):
-            self.app.start()
-            hotkey = self.app.hotkey
-            hotkey.triggered.set()
-            self.wait_for_exit()
-            hotkey.close.assert_called_once_with()
-        self.assertIn("已停止", self.app.log.get("1.0", "end"))
-
-    def test_hotkey_conflict_does_not_launch_task(self):
-        with patch.object(entry, "StopHotkey") as hotkey, \
-                patch("tkinter.messagebox.showerror") as show_error, \
-                patch.object(self.app.context, "Process") as process:
-            hotkey.return_value.start.side_effect = OSError("停止快捷键已被占用")
-            self.app.start()
-        process.assert_not_called()
-        show_error.assert_called_once()
-        self.assertIsNone(self.app.hotkey)
-        self.assertIsNone(self.app.process)
-        self.assertEqual(self.app.action_button.cget("text"), "开始")

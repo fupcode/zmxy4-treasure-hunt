@@ -10,7 +10,7 @@ from zmxy4_treasure_hunt.voyage.game_window import GameWindow, GameWindowError
 
 class CoordinateTests(unittest.TestCase):
 
-    def test_window_initialization_focuses_top_left_after_coordinate_offset(self):
+    def test_window_initialization_focuses_center_after_coordinate_offset(self):
         for outer_box in (None, (100, 200, 500, 600)):
             for focus_game in (True, False):
                 with self.subTest(outer_box=outer_box, focus_game=focus_game):
@@ -18,6 +18,7 @@ class CoordinateTests(unittest.TestCase):
                     with (
                         patch.object(window, "capture_screen", return_value=np.zeros((100, 120, 3), dtype=np.uint8)),
                         patch.object(window, "locate_window", return_value=[5, 6, 105, 86]),
+                        patch.object(window, "update", return_value=0),
                         patch("zmxy4_treasure_hunt.voyage.game_window.click") as click,
                         patch("zmxy4_treasure_hunt.voyage.game_window.ensure_window_permission") as check,
                         patch("builtins.print"),
@@ -27,7 +28,7 @@ class CoordinateTests(unittest.TestCase):
                     if focus_game:
                         point = (155, 246) if outer_box else (55, 46)
                         check.assert_called_once_with(point)
-                        expected = (115, 216) if outer_box else (15, 16)
+                        expected = point
                         click.assert_called_once_with(*expected)
                     else:
                         check.assert_not_called()

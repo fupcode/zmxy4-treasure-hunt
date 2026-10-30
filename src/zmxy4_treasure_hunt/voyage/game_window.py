@@ -57,28 +57,35 @@ class GameWindow:
         self.items = {"pao": False, "dan": False, "fan": False}
 
     def init_window(self, outer_window_box=None, *, focus_game=True):
-        screen_image = self.capture_screen(outer_window_box)
-        screen_image_hls = cv2.cvtColor(screen_image, cv2.COLOR_RGB2HLS)
-        self.window_box = self.locate_window(screen_image_hls)
+        for attempt in range(2):
+            screen_image = self.capture_screen(outer_window_box)
+            screen_image_hls = cv2.cvtColor(screen_image, cv2.COLOR_RGB2HLS)
+            self.window_box = self.locate_window(screen_image_hls)
 
-        if outer_window_box is not None:
-            self.window_box[0] += outer_window_box[0]
-            self.window_box[1] += outer_window_box[1]
-            self.window_box[2] += outer_window_box[0]
-            self.window_box[3] += outer_window_box[1]
-        width = self.window_box[2] - self.window_box[0]
-        height = self.window_box[3] - self.window_box[1]
-        self.window_size = (width, height)
+            if outer_window_box is not None:
+                self.window_box[0] += outer_window_box[0]
+                self.window_box[1] += outer_window_box[1]
+                self.window_box[2] += outer_window_box[0]
+                self.window_box[3] += outer_window_box[1]
+            width = self.window_box[2] - self.window_box[0]
+            height = self.window_box[3] - self.window_box[1]
+            self.window_size = (width, height)
 
-        print("Window Box:", self.window_box)
-        print(f"Window Size: {width} x {height} = {width * height}")
+            print("Window Box:", self.window_box)
+            print(f"Window Size: {width} x {height} = {width * height}")
+
+            status = self.update()
+            if status != -1:
+                break
+            if attempt == 1:
+                raise GameWindowError("初始化失败：尝试启航后仍然失败")
+            self.click_normal(0.245, 0.783)
+            time.sleep(5)
 
         if focus_game:
             left, top, right, bottom = self.window_box
             ensure_window_permission(((left + right) // 2, (top + bottom) // 2))
-            left, top, _, _ = self.window_box
-            click(left + min(10, (width - 1) // 2),
-                  top + min(10, (height - 1) // 2))
+            click((left + right) // 2, (top + bottom) // 2)
 
     def get_map_index_at_start(self):
         frame = self.capture_screen(box=self.window_box)
@@ -204,7 +211,7 @@ class GameWindow:
             time.sleep(1)
 
         if icon_box is None:
-            raise TimeoutError("Can't find the icon.")
+            raise TimeoutError("预期在主界面找到航海图标，未找到")
 
         self.click_normal(icon_box.xywhn[0], icon_box.xywhn[1])
 

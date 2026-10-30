@@ -74,8 +74,7 @@ class FindTreasure:
                 cv2.moveWindow(WINDOW_NAME, 0, 0)
                 cv2.resizeWindow(WINDOW_NAME, 290, 322)
                 cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
-            left, top, _, _ = self.region
-            self.controller.click(left + min(10, self.width - 1), top + min(10, self.height - 1))
+            self.controller.click((left + right) // 2, (top + bottom) // 2)
             time.sleep(0.1)
             self.monitor()
         finally:

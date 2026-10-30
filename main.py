@@ -180,8 +180,8 @@ class Application:
         self.stopping = self.closing = False
         self.context = multiprocessing.get_context("spawn")
         root.title("造梦西游4寻宝助手")
-        root.geometry("520x390")
-        root.minsize(400, 300)
+        root.geometry("420x300")
+        root.minsize(380, 220)
         icon = Path(__file__).with_name("treasure_hunt.ico")
         if icon.exists():
             root.iconbitmap(str(icon))

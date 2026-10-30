@@ -8,6 +8,7 @@ import win32con
 
 from zmxy4_treasure_hunt.voyage.core.onnx_model import OnnxModel, DetectionResult
 from zmxy4_treasure_hunt.voyage.core.action_manager import key_up_all
+from zmxy4_treasure_hunt.window_permissions import ensure_window_permission
 
 
 def set_cursor_pos(x, y):
@@ -73,6 +74,8 @@ class GameWindow:
         print(f"Window Size: {width} x {height} = {width * height}")
 
         if focus_game:
+            left, top, right, bottom = self.window_box
+            ensure_window_permission(((left + right) // 2, (top + bottom) // 2))
             left, top, _, _ = self.window_box
             click(left + min(10, (width - 1) // 2),
                   top + min(10, (height - 1) // 2))

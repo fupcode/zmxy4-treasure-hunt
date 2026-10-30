@@ -6,6 +6,8 @@ import time
 import cv2
 import numpy as np
 
+from zmxy4_treasure_hunt.window_permissions import ensure_window_permission
+
 from .runtime.capture import ScreenCapture
 from .runtime.controls import MovementController
 from .debug.diagnostics import export_alignment_debug
@@ -65,6 +67,8 @@ class FindTreasure:
 
     def main(self):
         try:
+            left, top, right, bottom = self.region
+            ensure_window_permission(((left + right) // 2, (top + bottom) // 2))
             if self.debug:
                 cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
                 cv2.moveWindow(WINDOW_NAME, 0, 0)

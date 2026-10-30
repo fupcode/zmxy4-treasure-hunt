@@ -85,6 +85,7 @@ class WorkerTests(unittest.TestCase):
 
     def test_window_errors_are_distinct_from_other_errors(self):
         for error, kind in ((entry.WindowNotFoundError("请进入游戏"), "window_error"),
+                            (entry.WindowPermissionError("请以管理员身份运行"), "error"),
                             (entry.RecognitionError("未检测到迷宫墙壁线条"), "error"),
                             (RuntimeError("模型加载失败"), "error")):
             with self.subTest(kind=kind):
@@ -96,7 +97,7 @@ class WorkerTests(unittest.TestCase):
                 self.assertEqual(connection.send.call_args.args[0][0], kind)
                 logs = "".join(call.args[0][1] for call in connection.send.call_args_list
                                if call.args[0][0] == "log")
-                if isinstance(error, (entry.WindowNotFoundError, entry.RecognitionError)):
+                if isinstance(error, (entry.WindowNotFoundError, entry.RecognitionError, entry.WindowPermissionError)):
                     self.assertNotIn("Traceback", logs)
                     self.assertEqual(connection.send.call_args.args[0][1], str(error))
                 else:

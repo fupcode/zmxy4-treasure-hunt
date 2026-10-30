@@ -10,6 +10,7 @@ import tempfile
 import traceback
 
 from zmxy4_treasure_hunt.hotkey import CTRL_WARNING, KEYS, StopHotkey, parse_hotkey
+from zmxy4_treasure_hunt.window_permissions import WindowPermissionError
 
 
 def get_settings_path():
@@ -151,7 +152,7 @@ def task_worker(mode, count, connection):
             run_task(mode, count)
         except WindowNotFoundError as exc:
             result = ("window_error", str(exc))
-        except RecognitionError as exc:
+        except (RecognitionError, WindowPermissionError) as exc:
             result = ("error", str(exc))
         except BaseException as exc:
             traceback.print_exc()
@@ -227,7 +228,6 @@ class Application:
         self.hotkey_button.pack(side="left")
         self.log = ScrolledText(frame, wrap="word", state="disabled", font=("Microsoft YaHei UI", 9))
         self.log.pack(fill="both", expand=True)
-        self.append_log("如果使用造梦微端，请将本程序以管理员权限启动\n")
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
 
@@ -465,6 +465,9 @@ def main(argv=None):
         else:
             from zmxy4_treasure_hunt.voyage.cli import main as run
         return run(argv[1:])
+    except WindowPermissionError as exc:
+        print(str(exc))
+        return 1
     except (KeyboardInterrupt, EOFError):
         print("\n已退出。")
         return 130

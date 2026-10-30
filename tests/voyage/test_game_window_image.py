@@ -11,6 +11,18 @@ from zmxy4_treasure_hunt.voyage.game_window import GameWindow
 
 class GameWindowImageTests(unittest.TestCase):
 
+    def test_permission_failure_prevents_initial_click(self):
+        with patch('zmxy4_treasure_hunt.voyage.game_window.OnnxModel'):
+            window = GameWindow(capture_enabled=False)
+        with patch.object(window, 'capture_screen', return_value=np.zeros((400, 600, 3), dtype=np.uint8)), \
+             patch.object(window, 'locate_window', return_value=[10, 20, 610, 420]), \
+             patch('zmxy4_treasure_hunt.voyage.game_window.ensure_window_permission', side_effect=PermissionError('权限不足')) as check, \
+             patch('zmxy4_treasure_hunt.voyage.game_window.click') as click:
+            with self.assertRaises(PermissionError):
+                window.init_window((100, 200, 1000, 900))
+        check.assert_called_once_with((410, 420))
+        click.assert_not_called()
+
     def test_winrt_fallback_uses_on_demand_capture(self):
         camera = Mock()
         with patch("zmxy4_treasure_hunt.voyage.game_window.dxcam.create",

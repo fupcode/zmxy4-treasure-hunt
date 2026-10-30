@@ -19,14 +19,18 @@ class CoordinateTests(unittest.TestCase):
                         patch.object(window, "capture_screen", return_value=np.zeros((100, 120, 3), dtype=np.uint8)),
                         patch.object(window, "locate_window", return_value=[5, 6, 105, 86]),
                         patch("zmxy4_treasure_hunt.voyage.game_window.click") as click,
+                        patch("zmxy4_treasure_hunt.voyage.game_window.ensure_window_permission") as check,
                         patch("builtins.print"),
                     ):
                         window.init_window(outer_box, focus_game=focus_game)
                     self.assertEqual(window.window_size, (100, 80))
                     if focus_game:
+                        point = (155, 246) if outer_box else (55, 46)
+                        check.assert_called_once_with(point)
                         expected = (115, 216) if outer_box else (15, 16)
                         click.assert_called_once_with(*expected)
                     else:
+                        check.assert_not_called()
                         click.assert_not_called()
 
     def test_uninitialized_geometry_rejects_mouse_actions(self):

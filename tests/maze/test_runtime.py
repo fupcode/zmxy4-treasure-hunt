@@ -73,6 +73,20 @@ class ControllerTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def setUp(self):
+        permission_patch = patch('zmxy4_treasure_hunt.maze.ft.ensure_window_permission')
+        self.check_permission = permission_patch.start()
+        self.addCleanup(permission_patch.stop)
+
+    def test_permission_failure_closes_capture_without_clicking(self):
+        runner, capture, controller = self.make_runner()
+        self.check_permission.side_effect = PermissionError('权限不足')
+        with self.assertRaises(PermissionError):
+            runner.main()
+        self.check_permission.assert_called_once_with((310, 220))
+        controller.click.assert_not_called()
+        capture.close.assert_called_once_with()
+
     def make_runner(self, debug=False):
         capture, controller = Mock(), Mock()
         cells = np.full((5, 7), 2, dtype=np.uint8)

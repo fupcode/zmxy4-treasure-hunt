@@ -19,7 +19,7 @@ def get_settings_path():
 
 
 def load_settings(path):
-    settings = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True, "stop_hotkey": "F8"}
+    settings = {"mode": "maze", "voyage_count": 3, "minimize_on_start": False, "stop_hotkey": "F8"}
     try:
         saved = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -216,9 +216,6 @@ class Application:
         self.count_input = ttk.Spinbox(count_options, from_=1, to=9999, width=6, textvariable=self.count)
         self.count_input.pack(side="left")
         self.update_count()
-        self.minimize_on_start = tk.BooleanVar(value=self.settings["minimize_on_start"])
-        ttk.Checkbutton(options, text="寻宝时最小化窗口", variable=self.minimize_on_start).pack(
-            anchor="w", pady=(10, 0))
         hotkey_options = ttk.Frame(options)
         hotkey_options.pack(anchor="w", pady=(10, 0))
         ttk.Label(hotkey_options, text="停止快捷键").pack(side="left", padx=(0, 8))
@@ -226,10 +223,21 @@ class Application:
         self.hotkey_button = ttk.Button(hotkey_options, textvariable=self.stop_hotkey,
                                        width=14, command=self.choose_hotkey)
         self.hotkey_button.pack(side="left")
+        self.minimize_on_start = tk.BooleanVar(value=self.settings["minimize_on_start"])
+        ttk.Checkbutton(options, text="寻宝时最小化窗口", variable=self.minimize_on_start,
+                        command=self.warn_minimize).pack(
+            anchor="w", pady=(10, 0))
         self.log = ScrolledText(frame, wrap="word", state="disabled", font=("Microsoft YaHei UI", 9))
         self.log.pack(fill="both", expand=True)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
+
+    def warn_minimize(self):
+        from tkinter import messagebox
+
+        if self.minimize_on_start.get():
+            messagebox.showwarning("最小化性能提示", "最小化会严重削减性能。\n如果开启后行为异常，请关闭。",
+                                   parent=self.root)
 
     def update_count(self):
         self.count_input.configure(state="normal" if self.mode.get() == "voyage" else "disabled")

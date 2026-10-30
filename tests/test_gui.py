@@ -54,7 +54,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [path])
 
     def test_missing_damaged_and_invalid_settings_use_defaults(self):
-        defaults = {"mode": "maze", "voyage_count": 3, "minimize_on_start": True,
+        defaults = {"mode": "maze", "voyage_count": 3, "minimize_on_start": False,
                     "stop_hotkey": "F8"}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"

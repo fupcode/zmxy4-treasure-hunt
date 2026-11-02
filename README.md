@@ -124,10 +124,16 @@ git push origin v1.0.0
 本地使用已安装项目和 PyInstaller 的 Windows 环境也可构建：
 
 ```powershell
+uv sync --group build
 .venv/Scripts/python.exe tools/build_distribution.py
 ```
 
 输出位于 `build/release/`，不会覆盖原有的 `dist` 目录。
+
+WinRT 依赖由 `dxcam[cv2,winrt]` 安装，项目 hook 显式收集动态导入的 WinRT 模块、原生扩展和 DLL。
+构建脚本在打包前检查依赖，并运行生成的 exe 检查冻结后的 WinRT 导入；检查通过后才生成 ZIP。
+也可运行 `造梦西游4寻宝助手.exe --check-runtime report.json`，查看 JSON 报告（不启动截图或游戏操作）。
+若旧发布包提示 `WinRT backend requires optional dependencies`，请使用重新构建的完整 ZIP，并保留 `_internal` 目录。
 
 ### 开发与测试
 

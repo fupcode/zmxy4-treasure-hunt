@@ -465,6 +465,11 @@ def main(argv=None):
         description="航海寻宝与迷宫寻宝；不带参数时打开图形界面。",
         epilog="示例：main.py voyage 3；main.py maze --debug。子命令帮助：main.py maze --help。",
     )
+    parser.add_argument("--check-runtime", metavar="REPORT", help="检查 WinRT 依赖并写入 JSON 报告")
+    if argv[0] == "--check-runtime":
+        from zmxy4_treasure_hunt.runtime_check import write_runtime_report
+
+        return write_runtime_report(parser.parse_args(argv).check_runtime)
     parser.add_argument("command", choices=("maze", "voyage"), help="maze：迷宫寻宝；voyage：航海寻宝")
     try:
         command = parser.parse_args(argv[:1]).command

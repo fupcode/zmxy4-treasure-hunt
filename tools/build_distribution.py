@@ -1,6 +1,7 @@
 """构建包含运行依赖、模型和说明素材的 Windows 发布 ZIP。"""
 
 from pathlib import Path
+import json
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,13 @@ def main():
         raise FileNotFoundError(f"缺少航海模型：{model}")
     if not list(assets.glob("*.png")):
         raise FileNotFoundError(f"缺少发布说明图片：{assets}")
+
+    # 在打包前给出原始导入错误，避免缺依赖的构建环境生成有问题的发布包。
+    subprocess.run(
+        [sys.executable, "-c",
+         "from zmxy4_treasure_hunt.runtime_check import check_winrt_dependencies; check_winrt_dependencies()"],
+        cwd=ROOT, check=True,
+    )
 
     # 使用独立输出目录，保留手动维护的 dist 目录。
     output = ROOT / "build" / "release"
@@ -39,6 +47,16 @@ def main():
                 app / "weights" / "best.onnx"]
     if not all(path.exists() for path in required):
         raise RuntimeError("发布包缺少程序、运行依赖或模型")
+    # 实际运行冻结程序；仅检查依赖，不打开 GUI 或初始化截图设备。
+    report_path = output / "runtime-check.json"
+    report_path.unlink(missing_ok=True)
+    result = subprocess.run(
+        [str(app / f"{APP_NAME}.exe"), "--check-runtime", str(report_path)],
+        cwd=output, timeout=60, check=False,
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.is_file() else {}
+    if result.returncode or not report.get("ok") or not report.get("frozen"):
+        raise RuntimeError(f"冻结程序 WinRT 依赖检查失败：{report}")
     archive = shutil.make_archive(str(output / APP_NAME), "zip", output, APP_NAME)
     print(f"发布包：{archive}")
 
